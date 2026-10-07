@@ -72,7 +72,59 @@ describe("createGit", () => {
     expect(await git.changedBetween(fork, "HEAD")).toEqual(["a.txt"]);
     const merge = await git.mergeBase("main");
     expect(merge.ok).toBe(false);
+    if (!merge.ok) expect(merge.output).toContain("CONFLICT");
     expect(await git.isClean()).toBe(false);
     expect(await git.isMerging()).toBe(true);
+  });
+
+  it("throws on commitAll with unresolved conflicts", async () => {
+    const { root, run, git } = repository();
+    await git.createBranch("sdd/2026-10-08-sort");
+    writeFileSync(join(root, "a.txt"), "branch\n");
+    await git.commitAll("branch edit");
+    run("switch", "-q", "main");
+    writeFileSync(join(root, "a.txt"), "main\n");
+    run("commit", "-qam", "main edit");
+    run("switch", "-q", "sdd/2026-10-08-sort");
+    await git.mergeBase("main");
+    await expect(git.commitAll("merge")).rejects.toThrow("Resolve the merge conflicts first");
+  });
+
+  it("commits after resolving merge conflicts", async () => {
+    const { root, run, git } = repository();
+    await git.createBranch("sdd/2026-10-08-sort");
+    writeFileSync(join(root, "a.txt"), "branch\n");
+    await git.commitAll("branch edit");
+    run("switch", "-q", "main");
+    writeFileSync(join(root, "a.txt"), "main\n");
+    run("commit", "-qam", "main edit");
+    run("switch", "-q", "sdd/2026-10-08-sort");
+    await git.mergeBase("main");
+    run("checkout", "--ours", "a.txt");
+    run("add", "a.txt");
+    const commit = await git.commitAll("resolved");
+    expect(commit).toBeDefined();
+    expect(await git.isMerging()).toBe(false);
+  });
+
+  it("preserves non-ASCII filenames", async () => {
+    const { root, git } = repository();
+    const filename = "é.txt";
+    writeFileSync(join(root, filename), "content\n");
+    const changed = await git.changedSince("HEAD", [filename]);
+    expect(changed).toContain(filename);
+  });
+
+  it("lists both old and new names on rename", async () => {
+    const { root, run, git } = repository();
+    run("mv", "a.txt", "b.txt");
+    run("add", "-A");
+    const changed = await git.changedSince("HEAD", ["a.txt", "b.txt"]);
+    expect(changed.sort()).toEqual(["a.txt", "b.txt"]);
+  });
+
+  it("rejects restore with path traversal", async () => {
+    const { git } = repository();
+    await expect(git.restore("HEAD", ["../outside.txt"])).rejects.toThrow("Path is outside the repository");
   });
 });

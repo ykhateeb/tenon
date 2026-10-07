@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
+import { type Readable } from "node:stream";
 
 export type CommandResult = { code: number | null; output: string; timedOut: boolean };
 
@@ -7,7 +8,7 @@ const MAX_OUTPUT = 20_000;
 /** Run a shell command in a folder. Keep the last part of stdout and stderr. Stop it after the timeout. */
 export function runCommand(command: string, { cwd, timeoutMs }: { cwd: string; timeoutMs: number }): Promise<CommandResult> {
   return new Promise((resolve) => {
-    const child = spawn(command, { cwd, shell: true, detached: true });
+    const child = spawn(command, { cwd, shell: true, detached: true, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     let timedOut = false;
     const keep = (chunk: Buffer) => {
@@ -17,7 +18,7 @@ export function runCommand(command: string, { cwd, timeoutMs }: { cwd: string; t
     child.stderr.on("data", keep);
     const timer = setTimeout(() => {
       timedOut = true;
-      stopGroup(child.pid);
+      stopGroup(child);
     }, timeoutMs);
     child.on("error", (error) => {
       clearTimeout(timer);
@@ -30,12 +31,17 @@ export function runCommand(command: string, { cwd, timeoutMs }: { cwd: string; t
   });
 }
 
-/** ponytail: stops the POSIX process group. On Windows, only the shell stops. */
-function stopGroup(pid: number | undefined): void {
-  if (pid === undefined) return;
+/** Stop the process and its children. On Windows, falls back to killing only the shell. */
+function stopGroup(child: ChildProcessByStdio<null, Readable, Readable>): void {
+  if (child.pid === undefined) return;
   try {
-    process.kill(-pid, "SIGKILL");
+    process.kill(-child.pid, "SIGKILL");
   } catch {
-    // The group already ended.
+    // Fall back on Windows or if the group already ended.
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      // The process already ended.
+    }
   }
 }

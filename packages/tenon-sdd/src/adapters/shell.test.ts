@@ -11,4 +11,10 @@ describe("runCommand", () => {
     const result = await runCommand("sleep 5", { cwd: tmpdir(), timeoutMs: 200 });
     expect(result.timedOut).toBe(true);
   });
+
+  it("does not wait for stdin when command exits immediately", async () => {
+    const result = await runCommand("cat", { cwd: tmpdir(), timeoutMs: 5000 });
+    expect(result.code).toBe(0);
+    expect(result.timedOut).toBe(false);
+  });
 });
