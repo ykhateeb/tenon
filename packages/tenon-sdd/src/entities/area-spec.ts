@@ -162,32 +162,32 @@ function readAreaLine(area: AreaSpec, section: string, line: string, lineNum: nu
   if (section === "Current behavior") {
     if (requirement) {
       area.behavior.push(toRequirement(requirement));
-    } else if (line && !line.startsWith("#")) {
+    } else if (line) {
       errors.push(`area spec line ${lineNum}: this is not a requirement line: "${line}".`);
     }
   } else if (section === "Quality requirements") {
     if (requirement) {
       area.quality.push(toRequirement(requirement));
-    } else if (line && !line.startsWith("#")) {
+    } else if (line) {
       errors.push(`area spec line ${lineNum}: this is not a requirement line: "${line}".`);
     }
   } else if (section === "Tests") {
     const test = TEST_LINE.exec(line);
     if (test) {
       area.tests.push({ id: test[1], test: test[2] });
-    } else if (line && !line.startsWith("#")) {
+    } else if (line) {
       errors.push(`area spec line ${lineNum}: this is not a test link: "${line}".`);
     }
   } else if (section === "History") {
     const item = LIST_LINE.exec(line);
     if (item) area.history.push(item[1]);
-    else if (line && !line.startsWith("#")) {
+    else if (line) {
       errors.push(`area spec line ${lineNum}: this is not a history line: "${line}".`);
     }
   } else if (section === "Coverage") {
     const item = LIST_LINE.exec(line);
     if (item) area.coverage.push(item[1]);
-    else if (line && !line.startsWith("#")) {
+    else if (line) {
       errors.push(`area spec line ${lineNum}: this is not a coverage line: "${line}".`);
     }
   }

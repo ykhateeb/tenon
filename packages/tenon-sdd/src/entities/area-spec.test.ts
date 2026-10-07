@@ -123,6 +123,25 @@ Prefix: FAV   Next IDs: FAV-R-001, FAV-Q-001
       expect(result.errors.join("\n")).toContain("area spec line 6: an area spec has only the sections");
     }
   });
+
+  it("report heading-like lines inside sections as malformed", () => {
+    const result = parseAreaSpec(`# Area spec: Favorites
+Prefix: FAV   Next IDs: FAV-R-001, FAV-Q-001
+
+## Current behavior
+### Archived
+
+## Quality requirements
+
+## Tests
+
+## History
+`);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.join("\n")).toContain("area spec line 5: this is not a requirement line");
+    }
+  });
 });
 
 describe("applyChange", () => {
