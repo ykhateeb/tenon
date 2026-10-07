@@ -47,9 +47,26 @@ function toTask([, mark, id, rest]: RegExpExecArray, phase: string): Task {
     isTest: rest.includes("(test)"),
     isParallel: groups.includes("P"),
     refs: groups.filter((group) => group !== "P").flatMap((group) => group.split(",").map((ref) => ref.trim())),
-    file: [...rest.matchAll(FILE)].at(-1)?.[1],
+    file: extractFile(rest),
     phase,
   };
+}
+
+function extractFile(text: string): string | undefined {
+  const matches = [...text.matchAll(FILE)];
+  let lastPath: string | undefined;
+  for (const match of matches) {
+    const token = match[1];
+    // Remove backticks from start and end
+    let cleaned = token.replace(/^`+|`+$/g, "");
+    // Remove trailing punctuation
+    cleaned = cleaned.replace(/[.,;:)]+$/, "");
+    // Only accept if not empty and contains "/" or "."
+    if (cleaned && (cleaned.includes("/") || cleaned.includes("."))) {
+      lastPath = cleaned;
+    }
+  }
+  return lastPath;
 }
 
 function parallelClashes(tasks: readonly Task[]): string[] {

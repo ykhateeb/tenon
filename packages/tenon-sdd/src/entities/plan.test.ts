@@ -55,11 +55,63 @@ describe("parsePlan", () => {
   it("needs at least one task", () => {
     expect(parsePlan("# Plan\n").ok).toBe(false);
   });
+
+  it("cleans file paths: removes trailing punctuation and backticks", () => {
+    const plan = `# Plan
+### Phase 1
+- [ ] T001 [TEST] Text in FavoritesList.tsx.
+- [ ] T002 [TEST] Text in \`a.ts\`
+- [ ] T003 [TEST] Text in path/to/file.js:
+- [ ] T004 [TEST] Text in some/path.ts;
+- [ ] T005 [TEST] Text in another/path.ts,
+- [ ] T006 [TEST] Text in final/path.ts)
+`;
+    const result = parsePlan(plan);
+    if (!result.ok) throw new Error(result.errors.join("\n"));
+    expect(result.value[0].file).toBe("FavoritesList.tsx");
+    expect(result.value[1].file).toBe("a.ts");
+    expect(result.value[2].file).toBe("path/to/file.js");
+    expect(result.value[3].file).toBe("some/path.ts");
+    expect(result.value[4].file).toBe("another/path.ts");
+    expect(result.value[5].file).toBe("final/path.ts");
+  });
+
+  it("ignores non-path words after 'in'", () => {
+    const plan = `# Plan
+### Phase 1
+- [ ] T001 [TEST] Sort in the handler in api/sort.ts
+- [ ] T002 [TEST] Docs in CI) code in api/main.ts
+`;
+    const result = parsePlan(plan);
+    if (!result.ok) throw new Error(result.errors.join("\n"));
+    expect(result.value[0].file).toBe("api/sort.ts");
+    expect(result.value[1].file).toBe("api/main.ts");
+  });
 });
 
 describe("consistencyErrors", () => {
   it("names delta IDs with no task and scenarios with no test task", () => {
     expect(consistencyErrors(tasks(), SPEC)).toEqual(["No task names FAV-R-002.", "No (test) task names US2-S1."]);
+  });
+
+  it("requires scenarios to be named by test tasks, not non-test tasks", () => {
+    const planWithNonTestRef = `# Plan
+### Phase 1
+- [ ] T001 [US1-S1] Sort control in a.ts
+`;
+    const result = parsePlan(planWithNonTestRef);
+    if (!result.ok) throw new Error(result.errors.join("\n"));
+    const spec: Spec = {
+      stories: [{ id: "US1", title: "Test", priority: 1 }],
+      scenarios: [{ id: "US1-S1", story: "US1", text: "x" }],
+      delta: [],
+      baseline: [],
+      newAreas: [],
+      coverage: [],
+      openQuestions: [],
+      requirement: undefined,
+    };
+    expect(consistencyErrors(result.value, spec)).toEqual(["No (test) task names US1-S1."]);
   });
 
   it("finds two parallel tasks that change the same file", () => {
