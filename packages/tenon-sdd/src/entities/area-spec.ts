@@ -24,7 +24,7 @@ export type AreaChange = {
 
 const TITLE = /^# Area spec: (.+)$/;
 const HEADER = /^Prefix: ([A-Z]{2,8})\s+Next IDs: [A-Z]{2,8}-R-(\d+), [A-Z]{2,8}-Q-(\d+)$/;
-const REQUIREMENT_LINE = /^- ([A-Z]{2,8}-[RQ]-\d{3,}): (.+?)\s+\(since ([^;)]+)(?:; was: ([^)]*))?\)$/;
+const REQUIREMENT_LINE = /^- ([A-Z]{2,8}-[RQ]-\d{3,}): (.+?)\s+\(since ([^;)]+)(?:; was: (.*))?\)$/;
 const TEST_LINE = /^- ([A-Z]{2,8}-[RQ]-\d{3,}) → (.+)$/;
 const LIST_LINE = /^- (.+)$/;
 const FINAL_ID = /^[A-Z]{2,8}-[RQ]-\d{3,}$/;
@@ -47,15 +47,28 @@ export function parseAreaSpec(markdown: string): ParseResult<AreaSpec> {
   const area = newArea("area", "");
   area.title = "";
   let section = "";
-  for (const line of markdown.split(/\r?\n/).map((text) => text.trim())) {
-    if (line.startsWith("## ")) section = line.slice(3);
-    else readAreaLine(area, section, line);
+  const errors: string[] = [];
+  const lines = markdown.split(/\r?\n/).map((text) => text.trim());
+  const validSections = new Set(["Coverage", "Current behavior", "Quality requirements", "Tests", "History"]);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith("## ")) {
+      const newSection = line.slice(3);
+      if (!validSections.has(newSection)) {
+        errors.push(`area spec line ${i + 1}: an area spec has only the sections Coverage, Current behavior, Quality requirements, Tests, and History.`);
+      }
+      section = newSection;
+    } else {
+      readAreaLine(area, section, line, i + 1, errors);
+    }
   }
-  const errors = [
+
+  const initialErrors = [
     ...(area.title ? [] : ['An area spec starts with "# Area spec: <title>".']),
     ...(area.prefix ? [] : ['An area spec needs the line "Prefix: ABC   Next IDs: ABC-R-001, ABC-Q-001".']),
   ];
-  return parsed(area, errors);
+  return parsed(area, [...initialErrors, ...errors]);
 }
 
 export function renderAreaSpec(area: AreaSpec): string {
@@ -136,7 +149,7 @@ export function applyChange(area: AreaSpec, change: AreaChange): { area: AreaSpe
   };
 }
 
-function readAreaLine(area: AreaSpec, section: string, line: string): void {
+function readAreaLine(area: AreaSpec, section: string, line: string, lineNum: number, errors: string[]): void {
   const title = TITLE.exec(line);
   if (title) area.title = title[1];
   const header = HEADER.exec(line);
@@ -146,13 +159,38 @@ function readAreaLine(area: AreaSpec, section: string, line: string): void {
     area.nextQ = Number(header[3]);
   }
   const requirement = REQUIREMENT_LINE.exec(line);
-  if (requirement && section === "Current behavior") area.behavior.push(toRequirement(requirement));
-  if (requirement && section === "Quality requirements") area.quality.push(toRequirement(requirement));
-  const test = TEST_LINE.exec(line);
-  if (test && section === "Tests") area.tests.push({ id: test[1], test: test[2] });
-  const item = LIST_LINE.exec(line);
-  if (item && section === "History") area.history.push(item[1]);
-  if (item && section === "Coverage") area.coverage.push(item[1]);
+  if (section === "Current behavior") {
+    if (requirement) {
+      area.behavior.push(toRequirement(requirement));
+    } else if (line && !line.startsWith("#")) {
+      errors.push(`area spec line ${lineNum}: this is not a requirement line: "${line}".`);
+    }
+  } else if (section === "Quality requirements") {
+    if (requirement) {
+      area.quality.push(toRequirement(requirement));
+    } else if (line && !line.startsWith("#")) {
+      errors.push(`area spec line ${lineNum}: this is not a requirement line: "${line}".`);
+    }
+  } else if (section === "Tests") {
+    const test = TEST_LINE.exec(line);
+    if (test) {
+      area.tests.push({ id: test[1], test: test[2] });
+    } else if (line && !line.startsWith("#")) {
+      errors.push(`area spec line ${lineNum}: this is not a test link: "${line}".`);
+    }
+  } else if (section === "History") {
+    const item = LIST_LINE.exec(line);
+    if (item) area.history.push(item[1]);
+    else if (line && !line.startsWith("#")) {
+      errors.push(`area spec line ${lineNum}: this is not a history line: "${line}".`);
+    }
+  } else if (section === "Coverage") {
+    const item = LIST_LINE.exec(line);
+    if (item) area.coverage.push(item[1]);
+    else if (line && !line.startsWith("#")) {
+      errors.push(`area spec line ${lineNum}: this is not a coverage line: "${line}".`);
+    }
+  }
 }
 
 function toRequirement([, id, text, since, was]: RegExpExecArray): Requirement {

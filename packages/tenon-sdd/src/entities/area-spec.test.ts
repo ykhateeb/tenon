@@ -45,6 +45,84 @@ describe("parseAreaSpec and renderAreaSpec", () => {
     const result = parseAreaSpec("## Current behavior\n");
     expect(result.ok ? "" : result.errors.join("\n")).toMatch(/# Area spec[\s\S]*Prefix/);
   });
+
+  it("roundtrip a requirement with parentheses in text after a MODIFIED change", () => {
+    const withParens = `# Area spec: Cart
+Prefix: CHK   Next IDs: CHK-R-001, CHK-Q-001
+
+## Current behavior
+- CHK-R-001: Cart total includes tax (incl. shipping).  (since 2026-10-01-cart)
+
+## Quality requirements
+
+## Tests
+- CHK-R-001 → cart-total-with-tax
+
+## History
+- 2026-10-01-cart: ADDED CHK-R-001
+`;
+    const parsed = parseAreaSpec(withParens);
+    if (!parsed.ok) throw new Error(parsed.errors.join("\n"));
+
+    // Modify the requirement and apply the change
+    const { area: next } = applyChange(parsed.value, {
+      folder: "2026-10-02-shipping-fix",
+      delta: [{ op: "MODIFIED", area: "cart", id: "CHK-R-001", text: "Cart total includes tax (incl. shipping, no VAT).", was: "Cart total includes tax (incl. shipping)." }],
+      baseline: [],
+      coverage: undefined,
+      tests: [],
+    });
+
+    // Render and parse back
+    const text = renderAreaSpec(next);
+    const reparsed = parseAreaSpec(text);
+    if (!reparsed.ok) throw new Error(reparsed.errors.join("\n"));
+
+    // Check that the requirement survives the roundtrip with correct was field
+    expect(reparsed.value.behavior[0]).toEqual({
+      id: "CHK-R-001",
+      text: "Cart total includes tax (incl. shipping, no VAT).",
+      since: "2026-10-02-shipping-fix",
+      was: "Cart total includes tax (incl. shipping).",
+    });
+  });
+
+  it("report malformed requirement lines with line numbers", () => {
+    const result = parseAreaSpec(`# Area spec: Favorites
+Prefix: FAV   Next IDs: FAV-R-001, FAV-Q-001
+
+## Current behavior
+- FAV-R-01: two-digit ID  (since 2026-10-01)
+
+## Quality requirements
+
+## Tests
+
+## History
+`);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.join("\n")).toContain("area spec line 5: this is not a requirement line");
+    }
+  });
+
+  it("report unknown section headings with line numbers", () => {
+    const result = parseAreaSpec(`# Area spec: Favorites
+Prefix: FAV   Next IDs: FAV-R-001, FAV-Q-001
+
+## Current behavior
+
+## Notes
+
+## Tests
+
+## History
+`);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.join("\n")).toContain("area spec line 6: an area spec has only the sections");
+    }
+  });
 });
 
 describe("applyChange", () => {
