@@ -1,0 +1,15 @@
+{
+  "name": "tenon-sdd",
+  "version": "0.1.0",
+  "description": "Spec-driven development for pi: the /sdd runner, its gates, and one guide for each stage.",
+  "license": "MIT",
+  "keywords": ["pi-package"],
+  "type": "module",
+  "pi": {
+    "extensions": ["./src/extension.ts"]
+  },
+  "peerDependencies": {
+    "typebox": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
