@@ -29,6 +29,12 @@ describe("blockReason", () => {
     ["build", "e2e/sort-us1-s1.e2e.ts", /G2/],
     ["build", "E2E/Sort-US1-S1.e2e.ts", /G2/],
     ["build", "../outside.txt", /inside the project/],
+    ["build", "/etc/passwd", /inside the project/],
+    ["build", "C:/x.txt", /inside the project/],
+    ["build", "sdd\\areas\\favorites.md", /inside the project/],
+    ["build", "src/../sdd/areas/favorites.md", /inside the project/],
+    ["build", "./sdd/areas/favorites.md", /Ship/],
+    ["build", "src//a.ts", undefined],
     ["review", `${DIR}/outcome.md`, undefined],
     ["review", "src/a.ts", /review stage/],
   ])("%s stage, %s", (kind, path, expected) => {

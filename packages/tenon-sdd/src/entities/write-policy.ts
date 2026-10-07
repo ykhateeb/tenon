@@ -19,7 +19,18 @@ const ALLOWED: Record<StageKind, (dir: string) => Allowed> = {
  * The file systems of macOS and Windows ignore case, so the check does too.
  */
 export function blockReason(path: string, policy: Policy): string | undefined {
-  const target = path.toLowerCase();
+  // Block absolute paths and backslashes
+  if (path.startsWith("/") || /^[a-zA-Z]:/.test(path) || path.includes("\\")) {
+    return "Write only inside the project.";
+  }
+
+  // Normalize path: split on "/", drop empty and "." segments, reject if any ".."
+  const segments = path.split("/").filter((seg) => seg !== "" && seg !== ".");
+  if (segments.some((seg) => seg === "..")) {
+    return "Write only inside the project.";
+  }
+  const target = segments.join("/").toLowerCase();
+
   const dir = policy.changeDir.toLowerCase();
   return protectedReason(target, dir, policy) ?? stageReason(target, dir, policy);
 }
