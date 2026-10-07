@@ -57,10 +57,16 @@ function extractFile(text: string): string | undefined {
   let lastPath: string | undefined;
   for (const match of matches) {
     const token = match[1];
-    // Remove backticks from start and end
-    let cleaned = token.replace(/^`+|`+$/g, "");
-    // Remove trailing punctuation
-    cleaned = cleaned.replace(/[.,;:)]+$/, "");
+    // Iteratively remove backticks and trailing punctuation until stable
+    let cleaned = token;
+    let prev: string;
+    do {
+      prev = cleaned;
+      // Remove backticks from start and end
+      cleaned = cleaned.replace(/^`+|`+$/g, "");
+      // Remove trailing punctuation
+      cleaned = cleaned.replace(/[.,;:)]+$/, "");
+    } while (cleaned !== prev);
     // Only accept if not empty and contains "/" or "."
     if (cleaned && (cleaned.includes("/") || cleaned.includes("."))) {
       lastPath = cleaned;

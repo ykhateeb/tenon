@@ -59,12 +59,12 @@ describe("parsePlan", () => {
   it("cleans file paths: removes trailing punctuation and backticks", () => {
     const plan = `# Plan
 ### Phase 1
-- [ ] T001 [TEST] Text in FavoritesList.tsx.
-- [ ] T002 [TEST] Text in \`a.ts\`
-- [ ] T003 [TEST] Text in path/to/file.js:
-- [ ] T004 [TEST] Text in some/path.ts;
-- [ ] T005 [TEST] Text in another/path.ts,
-- [ ] T006 [TEST] Text in final/path.ts)
+- [ ] T001 Text in FavoritesList.tsx.
+- [ ] T002 Text in \`a.ts\`
+- [ ] T003 Text in path/to/file.js:
+- [ ] T004 Text in some/path.ts;
+- [ ] T005 Text in another/path.ts,
+- [ ] T006 Text in final/path.ts)
 `;
     const result = parsePlan(plan);
     if (!result.ok) throw new Error(result.errors.join("\n"));
@@ -76,11 +76,29 @@ describe("parsePlan", () => {
     expect(result.value[5].file).toBe("final/path.ts");
   });
 
+  it("rejects non-path words: 'in the handler' gives undefined", () => {
+    const result = parsePlan("# Plan\n### Phase 1\n- [ ] T001 [NEW-R1] Sort in the handler");
+    if (!result.ok) throw new Error(result.errors.join("\n"));
+    expect(result.value[0].file).toBeUndefined();
+  });
+
+  it("accepts last valid path, rejects later non-paths: 'in a.ts (see docs in CI)' gives 'a.ts'", () => {
+    const result = parsePlan("# Plan\n### Phase 1\n- [ ] T001 [NEW-R1] Sort in a.ts (see docs in CI)");
+    if (!result.ok) throw new Error(result.errors.join("\n"));
+    expect(result.value[0].file).toBe("a.ts");
+  });
+
+  it("cleans backticks and trailing punctuation iteratively: 'in `FavoritesList.tsx`.' gives 'FavoritesList.tsx'", () => {
+    const result = parsePlan("# Plan\n### Phase 1\n- [ ] T001 [NEW-R1] Sort in `FavoritesList.tsx`.");
+    if (!result.ok) throw new Error(result.errors.join("\n"));
+    expect(result.value[0].file).toBe("FavoritesList.tsx");
+  });
+
   it("ignores non-path words after 'in'", () => {
     const plan = `# Plan
 ### Phase 1
-- [ ] T001 [TEST] Sort in the handler in api/sort.ts
-- [ ] T002 [TEST] Docs in CI) code in api/main.ts
+- [ ] T001 [NEW-R1] Sort in the handler in api/sort.ts
+- [ ] T002 [NEW-R1] Docs in CI) code in api/main.ts
 `;
     const result = parsePlan(plan);
     if (!result.ok) throw new Error(result.errors.join("\n"));
