@@ -1,5 +1,5 @@
-import { readFile, readdir, rm } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import { readFile, readdir, rm, realpath } from "node:fs/promises";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { globBase, globToRegExp } from "../entities/glob.js";
 import type { TestCase, TestResult } from "../entities/traceability.js";
 
@@ -38,15 +38,18 @@ export async function removeReports(root: string, globs: readonly string[]): Pro
 
 /** Files under the folder part of the glob that match it. A missing folder gives no files. */
 async function findFiles(root: string, glob: string): Promise<string[]> {
-  if (glob.includes("..")) return [];
+  if (glob.split("/").includes("..")) return [];
   const base = join(root, globBase(glob));
-  const relativeBase = relative(root, base);
-  if (relativeBase.startsWith("..") || relativeBase === "" && base !== root) return [];
+  const realRoot = await realpath(root).catch(() => null);
+  const realBase = await realpath(base).catch(() => null);
+  if (!realRoot || !realBase) return [];
+  const relativeBase = relative(realRoot, realBase);
+  if (relativeBase.startsWith("..") || isAbsolute(relativeBase)) return [];
   const pattern = globToRegExp(glob);
-  const entries = await readdir(base, { recursive: true, withFileTypes: true }).catch(() => []);
+  const entries = await readdir(realBase, { recursive: true, withFileTypes: true }).catch(() => []);
   return entries
     .filter((entry) => entry.isFile())
-    .map((entry) => relative(root, join(entry.parentPath, entry.name)).split(sep).join("/"))
+    .map((entry) => relative(realRoot, join(entry.parentPath, entry.name)).split(sep).join("/"))
     .filter((path) => pattern.test(path));
 }
 

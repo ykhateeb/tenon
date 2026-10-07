@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -63,13 +63,27 @@ describe("readReports and removeReports", () => {
   });
 
   it("rejects .. globs and treats them as missing, does not delete outside files", async () => {
+    const parentTemp = mkdtempSync(join(tmpdir(), "tenon-sdd-parent-"));
+    const root = mkdtempSync(join(parentTemp, "root-"));
+    const sibling = join(parentTemp, "sibling");
+    mkdirSync(sibling);
+    writeFileSync(join(sibling, "sibling.xml"), fixture("jest.xml"));
+    const result = await readReports(root, ["../sibling/*.xml"]);
+    expect(result.cases).toHaveLength(0);
+    expect(result.missing).toEqual(["../sibling/*.xml"]);
+    await removeReports(root, ["../sibling/*.xml"]);
+    expect(existsSync(join(sibling, "sibling.xml"))).toBe(true);
+  });
+
+  it("rejects symlinked folders outside the project, does not delete files there", async () => {
     const root = mkdtempSync(join(tmpdir(), "tenon-sdd-"));
     const outside = mkdtempSync(join(tmpdir(), "tenon-sdd-outside-"));
     writeFileSync(join(outside, "outside.xml"), fixture("jest.xml"));
-    const result = await readReports(root, ["../*.xml"]);
+    symlinkSync(outside, join(root, "reports"), "dir");
+    const result = await readReports(root, ["reports/*.xml"]);
     expect(result.cases).toHaveLength(0);
-    expect(result.missing).toEqual(["../*.xml"]);
-    await removeReports(root, ["../tenon-sdd-outside-*/*.xml"]);
+    expect(result.missing).toEqual(["reports/*.xml"]);
+    await removeReports(root, ["reports/*.xml"]);
     expect(existsSync(join(outside, "outside.xml"))).toBe(true);
   });
 });
