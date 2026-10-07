@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="3" failures="1" errors="0" time="0.12">
+    <testsuite name="src/sort.test.ts" timestamp="2026-10-08T10:00:00.000Z" hostname="mac" tests="3" failures="1" errors="0" skipped="1" time="0.01">
+        <testcase classname="src/sort.test.ts" name="sort &gt; newest first [favorites-sorting-us1-s1]" time="0.002">
+        </testcase>
+        <testcase classname="src/sort.test.ts" name="sort &gt; ties by name" time="0.003">
+            <failure message="expected 1 to be 2" type="AssertionError">AssertionError: expected 1 to be 2</failure>
+        </testcase>
+        <testcase classname="src/sort.test.ts" name="sort &gt; later" time="0">
+            <skipped/>
+        </testcase>
+    </testsuite>
+</testsuites>

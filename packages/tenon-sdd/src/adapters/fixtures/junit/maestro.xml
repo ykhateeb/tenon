@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<testsuites>
+  <testsuite name="Test Suite" device="iPhone 16" tests="2" failures="1" time="21">
+    <testcase id="favorites-sorting-us1-s1" name="favorites-sorting-us1-s1" classname="favorites-sorting-us1-s1" time="10.2" status="SUCCESS"/>
+    <testcase id="favorites-sorting-us2-s1" name="favorites-sorting-us2-s1" classname="favorites-sorting-us2-s1" time="10.8" status="ERROR">
+      <failure>Element not found: Text matching regex: Newest</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

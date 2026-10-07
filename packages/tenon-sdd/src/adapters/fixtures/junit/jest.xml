@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="2" failures="1" errors="0" time="1.2">
+  <testsuite name="sort" errors="0" failures="1" skipped="0" timestamp="2026-10-08T10:00:00" time="1.1" tests="2">
+    <testcase classname="sort newest first" name="sort newest first" time="0.01">
+    </testcase>
+    <testcase classname="sort ties" name="sort ties" time="0.02">
+      <failure>Error: expect(received).toBe(expected)</failure>
+    </testcase>
+  </testsuite>
+</testsuites>
