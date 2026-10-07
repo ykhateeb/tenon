@@ -6,7 +6,8 @@ export type WorkStage = Exclude<Stage, "done">;
 export const GATES = ["G1", "G2", "G3"] as const;
 export type Gate = (typeof GATES)[number];
 export type Size = "full" | "small";
-export type ChangeType = "feature" | "change" | "bug" | "refactor" | "chore" | "docs";
+export const CHANGE_TYPES = ["feature", "change", "bug", "refactor", "chore", "docs"] as const;
+export type ChangeType = (typeof CHANGE_TYPES)[number];
 export type Classification = { type: ChangeType; size: Size };
 
 export type Approval = { gate: Gate; result: "approved"; commit: string; by: string; at: string };
@@ -40,7 +41,34 @@ export function parseState(json: string): ParseResult<State> {
   for (const key of ["owner", "base", "request"]) {
     if (typeof value[key] !== "string") errors.push(`state.json needs the text field "${key}".`);
   }
+  if (typeof value.specVersion !== "number" || !Number.isInteger(value.specVersion) || value.specVersion < 1) {
+    errors.push("state.json needs the integer field \"specVersion\" with a value of 1 or more.");
+  }
+  if (typeof value.reviewRounds !== "number" || !Number.isInteger(value.reviewRounds) || value.reviewRounds < 0) {
+    errors.push("state.json needs the integer field \"reviewRounds\" with a value of 0 or more.");
+  }
   if (!Array.isArray(value.gates)) errors.push('state.json needs the list "gates".');
+  else {
+    for (let i = 0; i < value.gates.length; i++) {
+      const entry = value.gates[i];
+      if (!isRecord(entry)) {
+        errors.push(`state.json: gates[${i}] must be an object.`);
+        continue;
+      }
+      if (!GATES.includes(entry.gate as Gate)) {
+        errors.push(`state.json: gates[${i}] has an unknown gate "${String(entry.gate)}".`);
+      }
+      if (entry.result !== "approved" && entry.result !== "reopened") {
+        errors.push(`state.json: gates[${i}] has an unknown result "${String(entry.result)}".`);
+      }
+    }
+  }
+  if (value.size !== undefined && value.size !== "full" && value.size !== "small") {
+    errors.push(`state.json has an unknown size "${String(value.size)}".`);
+  }
+  if (value.type !== undefined && !CHANGE_TYPES.includes(value.type as ChangeType)) {
+    errors.push(`state.json has an unknown type "${String(value.type)}".`);
+  }
   return parsed(value as State, errors);
 }
 
@@ -58,8 +86,14 @@ export function stageOf(gate: Gate): WorkStage {
 }
 
 export function nextStage(state: State): Stage {
-  const order = STAGES.filter((stage) => !(stage === "plan" && state.size === "small") && !(stage === "tests" && state.type === "docs"));
-  return order[order.indexOf(state.stage) + 1] ?? "done";
+  const currentIndex = STAGES.indexOf(state.stage);
+  for (let i = currentIndex + 1; i < STAGES.length; i++) {
+    const stage = STAGES[i];
+    if (!(stage === "plan" && state.size === "small") && !(stage === "tests" && state.type === "docs")) {
+      return stage;
+    }
+  }
+  return "done";
 }
 
 /** The approval of a gate, if the last entry of that gate is an approval. */
@@ -84,6 +118,7 @@ export function returnedTo(state: State, { target, reason, by, at }: { target: W
   return {
     ...state,
     stage: target,
+    size: target === "plan" && state.size === "small" ? "full" : state.size,
     specVersion: isSpecChange ? state.specVersion + 1 : state.specVersion,
     gates: [...state.gates, ...reopened],
   };

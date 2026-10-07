@@ -25,6 +25,20 @@ describe("parseState", () => {
     expect(parseState("[]").ok).toBe(false);
     expect(parseState(JSON.stringify({ ...state(), stage: "deploy" })).ok).toBe(false);
   });
+
+  it("rejects a missing specVersion", () => {
+    const s = { ...state() };
+    delete (s as any).specVersion;
+    expect(parseState(JSON.stringify(s)).ok).toBe(false);
+  });
+
+  it("rejects a null gate entry", () => {
+    expect(parseState(JSON.stringify({ ...state(), gates: [null] })).ok).toBe(false);
+  });
+
+  it("rejects an unknown size", () => {
+    expect(parseState(JSON.stringify({ ...state(), size: "medium" })).ok).toBe(false);
+  });
 });
 
 describe("gateAfter", () => {
@@ -42,6 +56,18 @@ describe("nextStage", () => {
     expect(nextStage(state({ stage: "spec", size: "small", type: "bug" }))).toBe("tests");
     expect(nextStage(state({ stage: "spec", size: "small", type: "docs" }))).toBe("build");
     expect(nextStage(state({ stage: "ship" }))).toBe("done");
+  });
+
+  it("skips Plan when starting from it in small size", () => {
+    expect(nextStage(state({ stage: "plan", size: "small" }))).toBe("tests");
+  });
+
+  it("skips Tests when starting from it with docs type", () => {
+    expect(nextStage(state({ stage: "tests", type: "docs" }))).toBe("build");
+  });
+
+  it("transitions through the middle stages", () => {
+    expect(nextStage(state({ stage: "tests" }))).toBe("build");
   });
 });
 
@@ -73,6 +99,12 @@ describe("returnedTo", () => {
   it("increases the spec version on a return to Spec after G1", () => {
     expect(returnedTo(state({ stage: "build", gates: [approved("G1")] }), { target: "spec", ...order }).specVersion).toBe(2);
     expect(returnedTo(state({ stage: "tests" }), { target: "spec", ...order }).specVersion).toBe(1);
+  });
+
+  it("sets size to full when returning to Plan from small size", () => {
+    const next = returnedTo(state({ stage: "tests", size: "small" }), { target: "plan", ...order });
+    expect(next.size).toBe("full");
+    expect(next.stage).toBe("plan");
   });
 });
 
