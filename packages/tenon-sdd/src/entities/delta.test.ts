@@ -99,6 +99,23 @@ Coverage: shipping and coupons have no spec yet
   it("accepts CRLF line ends", () => {
     expect(valueOf(SPEC.replaceAll("\n", "\r\n")).delta).toHaveLength(4);
   });
+
+  it("rejects a malformed area heading with a capital letter", () => {
+    const errors = errorsOf(SPEC.replace("### sdd/areas/favorites.md", "### sdd/areas/Favorites.md"));
+    expect(errors).toMatch(/area heading looks like/);
+  });
+
+  it("rejects a malformed delta item with no colon", () => {
+    expect(errorsOf(SPEC.replace("- MODIFIED FAV-R-002: List shows newest first", "- MODIFIED FAV-R-002 List shows newest first"))).toMatch(/delta item looks like/);
+  });
+
+  it("parses a delta with plain text (none) instead of items", () => {
+    const result = parseSpec("# Spec: Order\n## Delta\nnone\n");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.delta).toEqual([]);
+    }
+  });
 });
 
 describe("sizeErrors", () => {
@@ -113,7 +130,7 @@ describe("sizeErrors", () => {
     expect(sizeErrors(spec(), { type: "feature", size: "full" })).toEqual([]);
     expect(sizeErrors(spec(), { type: "feature", size: "small" }).join(" ")).toMatch(/always full[\s\S]*empty delta or one MODIFIED/);
     expect(sizeErrors(spec(), { type: "bug", size: "full" })).toEqual(["A bug has an empty delta."]);
-    expect(sizeErrors(spec({ delta: [] }), { type: "bug", size: "small" })).toEqual(['A small bug needs the line "Requirement: <ID>"']);
+    expect(sizeErrors(spec({ delta: [] }), { type: "bug", size: "small" })).toEqual(['A small bug needs the line "Requirement: <ID>".']);
     expect(sizeErrors(spec({ delta: modified, requirement: "FAV-R-002" }), { type: "change", size: "small" })).toEqual([]);
   });
 });

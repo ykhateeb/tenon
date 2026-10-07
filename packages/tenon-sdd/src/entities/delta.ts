@@ -52,9 +52,16 @@ export function parseSpec(markdown: string): ParseResult<Spec> {
       area = undefined;
       return;
     }
-    area = readAreaHeading(spec, text) ?? area;
+    const at = `spec.md line ${index + 1}`;
+    const newArea = readAreaHeading(spec, text);
+    if (newArea !== undefined) {
+      area = newArea;
+    } else if ((section === DELTA || section === BASELINE) && text.startsWith("### ")) {
+      errors.push(`${at}: an area heading looks like "### sdd/areas/<area>.md" or "### sdd/areas/<area>.md (new, prefix ABC)".`);
+      area = undefined;
+    }
     readCommonLine(spec, text);
-    const line: Line = { text, next: texts[index + 1] ?? "", at: `spec.md line ${index + 1}` };
+    const line: Line = { text, next: texts[index + 1] ?? "", at };
     if (section === DELTA) readDeltaLine(spec, errors, line, area);
     if (section === BASELINE) readBaselineLine(spec, errors, line, area);
   });
@@ -68,7 +75,7 @@ export function sizeErrors(spec: Spec, { size, type }: Pick<State, "size" | "typ
   if (type === "feature" && size === "small") errors.push("A feature is always full size.");
   if (EMPTY_DELTA_TYPES.includes(type) && spec.delta.length) errors.push(`A ${type} has an empty delta.`);
   if (size === "small" && !isSmallDelta(spec.delta)) errors.push("A small change has an empty delta or one MODIFIED item.");
-  if (size === "small" && (type === "bug" || type === "change") && !spec.requirement) errors.push(`A small ${type} needs the line "Requirement: <ID>"`);
+  if (size === "small" && (type === "bug" || type === "change") && !spec.requirement) errors.push(`A small ${type} needs the line "Requirement: <ID>".`);
   return errors;
 }
 
@@ -93,7 +100,12 @@ function readCommonLine(spec: Spec, text: string): void {
 
 function readDeltaLine(spec: Spec, errors: string[], { text, next, at }: Line, area: string | undefined): void {
   const match = DELTA_ITEM.exec(text);
-  if (!match) return;
+  if (!match) {
+    if (text.startsWith("- ")) {
+      errors.push(`${at}: a delta item looks like "- ADDED NEW-R1: <text>", "- MODIFIED <ID>: <text>", or "- REMOVED <ID>: <text>".`);
+    }
+    return;
+  }
   const [, op, id, itemText] = match;
   if (!area) {
     errors.push(`${at}: put a "### sdd/areas/<area>.md" heading above the delta item ${id}.`);
@@ -120,7 +132,12 @@ function readBaselineLine(spec: Spec, errors: string[], { text, next, at }: Line
   const coverage = COVERAGE.exec(text);
   if (coverage && area) spec.coverage.push({ area, text: coverage[1] });
   const match = BASELINE_ITEM.exec(text);
-  if (!match) return;
+  if (!match) {
+    if (text.startsWith("- ")) {
+      errors.push(`${at}: a baseline item looks like "- BASE-R1: <text>".`);
+    }
+    return;
+  }
   const [, id, itemText] = match;
   if (!area) {
     errors.push(`${at}: put a "### sdd/areas/<area>.md" heading above the baseline item ${id}.`);
