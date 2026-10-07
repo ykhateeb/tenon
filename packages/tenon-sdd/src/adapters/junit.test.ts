@@ -28,6 +28,24 @@ describe("parseJunit", () => {
   it("reads Maestro", () => {
     expect(summary(fixture("maestro.xml"))).toEqual(["passed favorites-sorting-us1-s1", "failed favorites-sorting-us2-s1"]);
   });
+
+  it("passes when <system-out> CDATA contains <error>", () => {
+    const xml = `<testsuites><testsuite><testcase name="test1" classname="Test"><system-out><![CDATA[error <error code=1>]]></system-out></testcase></testsuite></testsuites>`;
+    expect(summary(xml)).toEqual(["passed test1"]);
+  });
+
+  it("one case when <failure> CDATA contains </testcase><testcase name=\"ghost\">", () => {
+    const xml = `<testsuites><testsuite><testcase name="real" classname="Test"><failure><![CDATA[failed </testcase><testcase name="ghost" classname="g">]]></failure></testcase></testsuite></testsuites>`;
+    const cases = parseJunit(xml);
+    expect(cases).toHaveLength(1);
+    expect(cases[0].name).toBe("real");
+    expect(cases[0].result).toBe("failed");
+  });
+
+  it("ignores <testcase> inside XML comment", () => {
+    const xml = `<testsuites><testsuite><!-- <testcase name="commented" classname="C"></testcase> --><testcase name="real" classname="Test"></testcase></testsuite></testsuites>`;
+    expect(summary(xml)).toEqual(["passed real"]);
+  });
 });
 
 describe("readReports and removeReports", () => {
@@ -42,5 +60,16 @@ describe("readReports and removeReports", () => {
     await removeReports(root, ["reports/*.xml"]);
     expect(existsSync(join(root, "reports/a.xml"))).toBe(false);
     expect(existsSync(join(root, "reports/sub/b.xml"))).toBe(true);
+  });
+
+  it("rejects .. globs and treats them as missing, does not delete outside files", async () => {
+    const root = mkdtempSync(join(tmpdir(), "tenon-sdd-"));
+    const outside = mkdtempSync(join(tmpdir(), "tenon-sdd-outside-"));
+    writeFileSync(join(outside, "outside.xml"), fixture("jest.xml"));
+    const result = await readReports(root, ["../*.xml"]);
+    expect(result.cases).toHaveLength(0);
+    expect(result.missing).toEqual(["../*.xml"]);
+    await removeReports(root, ["../tenon-sdd-outside-*/*.xml"]);
+    expect(existsSync(join(outside, "outside.xml"))).toBe(true);
   });
 });

@@ -11,7 +11,8 @@ const ENTITIES: Record<string, string> = { lt: "<", gt: ">", quot: '"', apos: "'
  * ponytail: reads <testcase> elements with a regex, not a full XML parser. Use an XML library if a test tool writes JUnit that this cannot read.
  */
 export function parseJunit(xml: string): TestCase[] {
-  return [...xml.matchAll(TESTCASE)].map(([, attributes, body = ""]) => ({
+  const cleaned = xml.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, "").replace(/<!--[\s\S]*?-->/g, "");
+  return [...cleaned.matchAll(TESTCASE)].map(([, attributes, body = ""]) => ({
     name: attribute(attributes, "name"),
     className: attribute(attributes, "classname"),
     result: resultOf(body),
@@ -37,8 +38,12 @@ export async function removeReports(root: string, globs: readonly string[]): Pro
 
 /** Files under the folder part of the glob that match it. A missing folder gives no files. */
 async function findFiles(root: string, glob: string): Promise<string[]> {
+  if (glob.includes("..")) return [];
+  const base = join(root, globBase(glob));
+  const relativeBase = relative(root, base);
+  if (relativeBase.startsWith("..") || relativeBase === "" && base !== root) return [];
   const pattern = globToRegExp(glob);
-  const entries = await readdir(join(root, globBase(glob)), { recursive: true, withFileTypes: true }).catch(() => []);
+  const entries = await readdir(base, { recursive: true, withFileTypes: true }).catch(() => []);
   return entries
     .filter((entry) => entry.isFile())
     .map((entry) => relative(root, join(entry.parentPath, entry.name)).split(sep).join("/"))
