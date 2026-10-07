@@ -68,7 +68,8 @@ describe("applyChange", () => {
     expect(text).toContain("- FAV-R-002: List shows newest first  (since 2026-10-08-favorites-sorting; was: List shows in the order added)");
     expect(text).toContain("- FAV-R-005: Users can sort favorites by date  (since 2026-10-08-favorites-sorting)");
     expect(text).toContain("- FAV-Q-002: Sort of 500 favorites takes < 100 ms  (since 2026-10-08-favorites-sorting)");
-    expect(text).not.toContain("FAV-R-003");
+    expect(text).not.toContain("- FAV-R-003:");
+    expect(text).not.toContain("- FAV-R-003 →");
     expect(next.history[0]).toBe("2026-10-08-favorites-sorting: ADDED FAV-R-005, FAV-Q-002; MODIFIED FAV-R-002; REMOVED FAV-R-003");
   });
 

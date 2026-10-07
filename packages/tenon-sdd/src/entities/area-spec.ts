@@ -60,7 +60,6 @@ export function parseAreaSpec(markdown: string): ParseResult<AreaSpec> {
 
 export function renderAreaSpec(area: AreaSpec): string {
   const requirement = (r: Requirement) => `- ${r.id}: ${r.text}  (since ${r.since}${r.was ? `; was: ${r.was}` : ""})`;
-  const historyLines = area.history.filter((line) => !line.includes("REMOVED"));
   return [
     `# Area spec: ${area.title}`,
     `Prefix: ${area.prefix}   Next IDs: ${area.prefix}-R-${pad(area.nextR)}, ${area.prefix}-Q-${pad(area.nextQ)}`,
@@ -76,7 +75,7 @@ export function renderAreaSpec(area: AreaSpec): string {
     ...area.tests.map((link) => `- ${link.id} → ${link.test}`),
     "",
     "## History",
-    ...historyLines.map((line) => `- ${line}`),
+    ...area.history.map((line) => `- ${line}`),
     "",
   ].join("\n");
 }
