@@ -2,7 +2,7 @@ import { mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { upsertSection } from "../entities/markdown.js";
-import type { Rules } from "../entities/rules.js";
+import { parseRules, type Rules } from "../entities/rules.js";
 import { approvalOf, gateAfter, nextStage, parseState, stageOf, type State } from "../entities/state.js";
 import type { Policy, StageKind } from "../entities/write-policy.js";
 import { GATE_QUESTIONS, gateSummary, invalidGates, lockedTests, recordApproval } from "./approve-gate.js";
@@ -90,6 +90,7 @@ async function drive(deps: Deps, change: Change, resumed: boolean): Promise<void
   deps.person.notify(`The change is ready. Merge the branch sdd/${change.folder} into ${state.base}.`, "info");
 }
 
+// ponytail: trusts git history. A stage with bash can commit a forged state.json and stop the app before the runner checks; read the branch diff before you merge.
 /**
  * The state of the last commit. The working tree of an interrupted run is not trusted:
  * a session could have written state.json through bash.
@@ -100,9 +101,16 @@ async function committedState(deps: Deps, change: Change): Promise<State> {
   return result.value;
 }
 
+/** The rules of the last commit: the working tree is not trusted before the protected files are restored. */
+async function committedRules(deps: Deps): Promise<Rules> {
+  const result = parseRules((await deps.git.fileAt("HEAD", RULES_PATH)) ?? "");
+  if (!result.ok) throw new Error(`${RULES_PATH} in the last commit is not valid: ${result.errors.join(" ")}`);
+  return result.value;
+}
+
 /** Restore the protected files of the interrupted session, then commit what is left, so that the merge can run. */
 async function restoreOnResume(deps: Deps, change: Change, state: State): Promise<string[]> {
-  const rules = await readRules(deps.root);
+  const rules = await committedRules(deps);
   const restored = await protectedErrors(deps, change, await policyOf(deps, change, state, rules), state, await deps.git.head());
   await deps.git.commitAll(`sdd(${change.slug}): resume`);
   return restored;

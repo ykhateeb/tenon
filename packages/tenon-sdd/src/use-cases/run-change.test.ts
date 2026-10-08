@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { AREA, createFakeProject, type FakeProject } from "../testing/fake-project.js";
+import { AREA, createFakeProject, RULES, type FakeProject } from "../testing/fake-project.js";
 import { APPROVE, change, createFakeAgent, createFakePerson, STOP, testDeps, type AgentScript } from "../testing/fakes.js";
 import { createRunner } from "./run-change.js";
 
@@ -358,6 +358,21 @@ describe("createRunner", () => {
     expect(runs.filter((run) => run.title === "sdd: review (sort)")).toHaveLength(3);
     expect(gatesOf(asked)).toEqual(["G1", "G2", "G3"]);
     expect(stateOf(project).reviewRounds).toBe(2);
+    expect(stateOf(project).stage).toBe("done");
+  });
+
+  it("locks the approved tests with the rules of the last commit, not the rules of the working tree", async () => {
+    const project = createFakeProject();
+    const first = runner(project, sortScript(project), { inputs: ["sort"], gates: [APPROVE, APPROVE, STOP] });
+    await first.runner.start("Sort favorites by date");
+    project.write("sdd/rules.md", RULES.replace("Test files: tests/**", "Test files: docs/**"));
+    project.write("tests/sort.txt", "sort-us1-s1|src/other.txt\n");
+    const second = runner(project, sortScript(project), { gates: [APPROVE] });
+    await second.runner.resume();
+    expect(second.notices.join("\n")).toContain("tests/sort.txt");
+    expect(project.read("tests/sort.txt")).toBe("sort-us1-s1|src/sort.txt\n");
+    expect(project.run("log", "--format=%s", "--", "tests/sort.txt")).not.toContain("resume");
+    expect(project.read("sdd/rules.md")).toBe(RULES);
     expect(stateOf(project).stage).toBe("done");
   });
 });
