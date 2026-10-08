@@ -36,7 +36,7 @@ export async function setupRules(deps: Deps, change: Change, state: State): Prom
       }
 
       // answer.kind === "approve"
-      if (!(await deps.git.isClean()) || (await deps.git.head()) !== reviewedHead || (await deps.git.currentBranch()) !== `sdd/${change.folder}`) {
+      if (!(await deps.git.isClean()) || !(await isAtReviewed(deps, change, reviewedHead))) {
         await redraft(deps, change, policy, state, reviewedHead);
         reviewedHead = await deps.git.head();
         continue; // Show gate again
@@ -55,6 +55,13 @@ export async function setupRules(deps: Deps, change: Change, state: State): Prom
         break; // Go back to agent session
       }
 
+      // The person can commit or switch the branch while the tier runs. The tier can write output files, so no clean check here.
+      if (!(await isAtReviewed(deps, change, reviewedHead))) {
+        await redraft(deps, change, policy, state, reviewedHead);
+        reviewedHead = await deps.git.head();
+        continue; // Show gate again
+      }
+
       // The draft commits of this setup become one commit with the same content.
       await deps.git.resetSoft(before);
       await deps.git.commitAll(rulesApprovedSubject(change));
@@ -63,6 +70,11 @@ export async function setupRules(deps: Deps, change: Change, state: State): Prom
   }
 }
 
+async function isAtReviewed(deps: Deps, change: Change, reviewedHead: string): Promise<boolean> {
+  return (await deps.git.head()) === reviewedHead && (await deps.git.currentBranch()) === `sdd/${change.folder}`;
+}
+
+// ponytail: the walk stops at a commit that is not a setup commit, such as a manual commit by the person. If the draft then has no change, the approval commit is empty, no commit is made, and the runner asks for the rules again at each resume.
 /** HEAD, or the commit before the draft commits of an earlier setup that the person stopped. The approval commit replaces them. */
 async function beforeDrafts(deps: Deps, change: Change): Promise<string> {
   const drafts = [`sdd(${change.slug}): rules draft`, `sdd(${change.slug}): files changed at the gate`];

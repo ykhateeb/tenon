@@ -109,4 +109,20 @@ describe("setupRules", () => {
     expect(project.run("log", "--format=%s")).not.toContain("rules draft");
     expect(project.run("status", "--porcelain")).toBe("");
   });
+
+  it("shows the gate again when the person commits during the full tier", async () => {
+    const project = createFakeProject({ withRules: false });
+    const marker = `${project.root}/reports/committed`;
+    const rulesWithCommit = RULES.replace(
+      "Full tier: node fake-tests.mjs",
+      `Full tier: if [ ! -f ${marker} ]; then mkdir -p ${project.root}/reports && touch ${marker} && git commit -q --allow-empty -m person; fi; node fake-tests.mjs`
+    );
+    const { agent } = createFakeAgent(async () => project.write("sdd/rules.md", rulesWithCommit));
+    const { person, asked } = createFakePerson({ gates: [APPROVE, APPROVE] });
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    expect(await setupRules(deps, started, await readState(started))).toBe("approved");
+    expect(asked).toEqual(["Approve sdd/rules.md?", "Approve sdd/rules.md?"]);
+    expect(project.run("log", "-1", "--format=%s", "--", "sdd/rules.md")).toBe("sdd(sort): rules approved");
+  });
 });
