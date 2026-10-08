@@ -405,6 +405,45 @@ describe("createRunner", () => {
     expect(stateOf(project).stage).toBe("done");
   });
 
+  it("gives the return reason to the next Build session after a review finding", async () => {
+    const project = createFakeProject();
+    const work = sortScript(project);
+    let hasFound = false;
+    const script: AgentScript = async (run, count) => {
+      const result = await work(run, count);
+      if (run.policy.kind !== "review" || hasFound) return result;
+      hasFound = true;
+      return { ...result, findings: [{ file: "src/sort.txt", problem: "the sort is not stable", action: "keep the order of equal dates", returnTo: "build" as const }] };
+    };
+    const { runner: sdd, runs } = runner(project, script, { inputs: ["sort"], gates: [APPROVE, APPROVE, APPROVE] });
+    await sdd.start("Sort favorites by date");
+    const builds = runs.filter((run) => run.title === "sdd: build foundation (sort)");
+    expect(builds[0].message).not.toContain("Returned to this stage");
+    expect(builds[1].message).toContain("Returned to this stage: Review findings: src/sort.txt: the sort is not stable");
+    expect(runs.at(-1)?.message).not.toContain("Returned to this stage");
+    expect(stateOf(project).stage).toBe("done");
+  });
+
+  it("starts a small change again at Spec when Build makes it full, and asks G1", async () => {
+    const project = createFakeProject();
+    const work = fixScript(project);
+    let hasReturned = false;
+    const script: AgentScript = async (run, count) => {
+      if (run.policy.kind === "build" && !hasReturned) {
+        hasReturned = true;
+        return { returnRequest: { stage: "build", reason: "it needs a new screen", size: "full" } };
+      }
+      const result = await work(run, count);
+      return run.policy.kind === "spec" && hasReturned ? { classification: { type: "bug", size: "full" } } : result;
+    };
+    const { runner: sdd, runs, asked } = runner(project, script, { inputs: ["fix"], gates: [STOP] });
+    await sdd.start("Fix the order after sync");
+    expect(runs.map((run) => run.title)).toEqual(["sdd: spec (fix)", "sdd: tests (fix)", "sdd: build (fix)", "sdd: spec (fix)"]);
+    expect(runs[3].message).toContain("Returned to this stage: it needs a new screen");
+    expect(gatesOf(asked)).toEqual(["G1"]);
+    expect(project.run("log", "--format=%s")).toContain("sdd(fix): return to spec");
+  });
+
   it("locks the approved tests with the rules of the last commit, not the rules of the working tree", async () => {
     const project = createFakeProject();
     const first = runner(project, sortScript(project), { inputs: ["sort"], gates: [APPROVE, APPROVE, STOP] });

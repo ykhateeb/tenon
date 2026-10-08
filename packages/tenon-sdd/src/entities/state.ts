@@ -26,7 +26,10 @@ export type State = {
   gates: GateEntry[];
   /** True once the change reached Build. A return after that keeps the code, so a test can pass in Tests. */
   built?: boolean;
+  /** The last return, until its stage passes the exit check. The stage sessions get the reason. */
+  returned?: { stage: WorkStage; reason: string };
 };
+export type Return = { target: WorkStage; reason: string; by: string; at: string; size?: "full" };
 
 const GATE_STAGE: Record<Gate, WorkStage> = { G1: "spec", G2: "tests", G3: "ship" };
 
@@ -72,6 +75,7 @@ export function parseState(json: string): ParseResult<State> {
     errors.push(`state.json has an unknown type "${String(value.type)}".`);
   }
   if (value.built !== undefined && typeof value.built !== "boolean") errors.push('state.json: "built" must be true or false.');
+  if (value.returned !== undefined && !isReturned(value.returned)) errors.push('state.json: "returned" needs a work stage and the text "reason".');
   return parsed(value as State, errors);
 }
 
@@ -113,17 +117,24 @@ export function withApproval(state: State, approval: Omit<Approval, "result">): 
   };
 }
 
-/** The return rule: go back to the target stage, and reopen each approved gate at or after it. */
-export function returnedTo(state: State, { target, reason, by, at }: { target: WorkStage; reason: string; by: string; at: string }): State {
-  const targetIndex = STAGES.indexOf(target);
-  const reopened: Reopening[] = GATES.filter((gate) => STAGES.indexOf(GATE_STAGE[gate]) >= targetIndex && approvalOf(state, gate)).map((gate) => ({ gate, result: "reopened", reason, by, at }));
-  const isSpecChange = target === "spec" && approvalOf(state, "G1") !== undefined;
+/**
+ * The return rule: go back to the target stage, and reopen each approved gate at or after it.
+ * A small change that becomes full starts again at Spec, because a full change needs G1.
+ */
+export function returnedTo(state: State, { target, reason, by, at, size }: Return): State {
+  const becomesFull = state.size === "small" && (size === "full" || target === "plan");
+  const stage: WorkStage = becomesFull ? "spec" : target;
+  const reopened: Reopening[] = GATES.filter((gate) => STAGES.indexOf(GATE_STAGE[gate]) >= STAGES.indexOf(stage) && approvalOf(state, gate)).map(
+    (gate) => ({ gate, result: "reopened", reason, by, at }),
+  );
+  const isSpecChange = stage === "spec" && approvalOf(state, "G1") !== undefined;
   return {
     ...state,
-    stage: target,
-    size: target === "plan" && state.size === "small" ? "full" : state.size,
+    stage,
+    size: becomesFull ? "full" : (size ?? state.size),
     specVersion: isSpecChange ? state.specVersion + 1 : state.specVersion,
     gates: [...state.gates, ...reopened],
+    returned: { stage, reason },
   };
 }
 
@@ -131,6 +142,10 @@ export function classificationError(state: State, { type, size }: Classification
   if (type === "feature" && size === "small") return "A feature is always full size.";
   if (size === "small" && state.size === "full" && approvalOf(state, "G1")) return "A full change cannot become small after G1.";
   return undefined;
+}
+
+function isReturned(value: unknown): boolean {
+  return isRecord(value) && STAGES.includes(value.stage as Stage) && value.stage !== "done" && typeof value.reason === "string";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

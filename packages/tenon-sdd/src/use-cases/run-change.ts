@@ -138,6 +138,7 @@ async function workStage(deps: Deps, change: Change, state: State, resume: reado
     if (checked.kind !== "passed") return endOf(deps, change, checked);
     current = checked.state;
   }
+  current = await withReturnDone(change, current);
   await deps.git.commitAll(`sdd(${change.slug}): ${current.stage} passed`);
   return gateOrAdvance(deps, change, current, rules);
 }
@@ -161,6 +162,7 @@ async function stageRun(deps: Deps, change: Change, state: State, rules: Rules, 
     `Change folder: ${change.dir}`,
     `Rules: ${RULES_PATH}`,
     ...(state.stage === "spec" ? [`Request: ${state.request}`] : []),
+    ...(state.returned?.stage === state.stage ? [`Returned to this stage: ${state.returned.reason}`] : []),
     ...lines,
   ].join("\n");
   return { title: `sdd: ${title} (${change.slug})`, message, policy };
@@ -227,6 +229,14 @@ async function gateOrAdvance(deps: Deps, change: Change, state: State, rules: Ru
   }
 }
 
+/** The stage of the last return passed its exit check, so its sessions no longer get the reason. */
+async function withReturnDone(change: Change, state: State): Promise<State> {
+  if (state.returned?.stage !== state.stage) return state;
+  const done: State = { ...state, returned: undefined };
+  await writeState(change, done);
+  return done;
+}
+
 async function advance(deps: Deps, change: Change, state: State): Promise<State> {
   const stage = nextStage(state);
   const next: State = stage === "build" ? { ...state, stage, built: true } : { ...state, stage };
@@ -263,9 +273,10 @@ async function reviewRound(deps: Deps, change: Change, state: State, rules: Rule
   const checked = await checkedStage(deps, change, state, [run], (_latest, findings) => shipErrors(deps, rules, change, findings !== undefined));
   if (checked.kind !== "passed") return endOf(deps, change, checked);
   const findings = checked.findings ?? [];
+  const reviewed = await withReturnDone(change, checked.state);
   await writeOutcomeSections(deps, change, ids, findings);
   await deps.git.commitAll(`sdd(${change.slug}): review`);
-  return { kind: "reviewed", state: checked.state, findings };
+  return { kind: "reviewed", state: reviewed, findings };
 }
 
 async function returnForFindings(deps: Deps, change: Change, state: State, findings: readonly Finding[]): Promise<Step> {

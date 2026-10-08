@@ -6,11 +6,10 @@ export type ReturnOrder = { stage: WorkStage; reason: string; size?: "full" };
 
 /** The return rule: set the stage, reopen the gates, undo the area spec edits of an earlier Ship, and commit. */
 export async function returnChange(deps: Deps, change: Change, state: State, { stage, reason, size }: ReturnOrder): Promise<State> {
-  const returned = returnedTo(state, { target: stage, reason, by: "runner", at: isoDate(deps.now()) });
-  const next: State = size ? { ...returned, size } : returned;
+  const next = returnedTo(state, { target: stage, reason, size, by: "runner", at: isoDate(deps.now()) });
   await restoreAreas(deps, state.base);
   await writeState(change, next);
-  await deps.git.commitAll(`sdd(${change.slug}): return to ${stage}`);
+  await deps.git.commitAll(`sdd(${change.slug}): return to ${next.stage}`);
   return next;
 }
 

@@ -2,6 +2,8 @@
 
 You write the code until the tests pass. The runner's message names your part: the foundation tasks, one story, or the check. If the message names no part, the change is small: do all of it, then the check part.
 
+If the message gives a return reason, fix that problem first. Keep the work that is still correct. After a review return, read the Review table in `outcome.md`: it lists each finding.
+
 ## Foundation and story parts
 
 The foundation part owns the setup tasks and the foundation tasks. The check part owns the polish tasks.

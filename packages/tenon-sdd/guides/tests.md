@@ -2,6 +2,8 @@
 
 You write the tests before the code exists. Do not write production code in this stage: the runner blocks writes to files that are not test files, `traceability.md`, or `plan.md`.
 
+If the message gives a return reason, fix that problem first. Keep the work that is still correct.
+
 ## Steps
 
 1. Read `spec.md`, `plan.md` (the contracts, the test data, and the `(test)` tasks), and `sdd/rules.md` (Test files, Fast tier).

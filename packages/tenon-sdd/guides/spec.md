@@ -2,6 +2,8 @@
 
 You write `spec.md` in the change folder. The spec tells what the user needs and why. It contains no technology words. The runner gave you the change folder and the request. The runner already made the branch, the folder, and `state.json`. You can write only `spec.md`.
 
+If the message gives a return reason, fix that problem first. Keep the work that is still correct. When the spec changes after a return, add a line to the change log. The new version is `specVersion` in `state.json`.
+
 ## Steps
 
 1. Read `sdd/rules.md` and the area specs in `sdd/areas/` that the request touches.
@@ -88,6 +90,9 @@ As a <user>, I want <action>, so that <value>.
 
 ## Decisions
 - <date> Q: <question> A: <answer>. Changed: <IDs>
+
+## Change log
+- v<old> → v<new> (<date>): <what changed>. Changed: <IDs>. Reopened: <gates>
 ```
 
 ## Template (small size)

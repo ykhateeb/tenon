@@ -2,6 +2,8 @@
 
 You write `plan.md` in the change folder: the technical approach and the task list. All technology choices are in the plan, not in the spec. You can write only `plan.md`.
 
+If the message gives a return reason, fix that problem first. Keep the work that is still correct.
+
 ## Steps
 
 1. Read `spec.md`, `sdd/rules.md`, and the code that the change touches.
@@ -28,7 +30,7 @@ You write `plan.md` in the change folder: the technical approach and the task li
 
 ```markdown
 # Plan: <title>
-Spec: version <n>
+Spec: version <specVersion in state.json>
 
 ## Technical context
 <stack, platforms, storage, test tools, constraints>

@@ -65,7 +65,7 @@ function requestReturn(pi: ExtensionAPI) {
     name: "request_return",
     label: "Return to an earlier stage",
     description:
-      "Report a problem that an earlier stage owns: wrong or missing behavior (spec), a wrong approach or a missing task (plan), a wrong or weak approved test (tests), a code defect (build). Use size full to make a small change full. After this call, stop.",
+      "Report a problem that an earlier stage owns: wrong or missing behavior (spec), a wrong approach or a missing task (plan), a wrong or weak approved test (tests), a code defect (build). Use size full to make a small change full. With size full, the change starts again at the spec stage. After this call, stop.",
     exposure: "model-only",
     parameters: Type.Object({
       stage: STAGE_UNION,

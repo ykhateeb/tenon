@@ -40,6 +40,12 @@ describe("parseState", () => {
     expect(parseState(JSON.stringify({ ...state(), size: "medium" })).ok).toBe(false);
   });
 
+  it("accepts a return with a stage and a reason, and rejects another value", () => {
+    expect(parseState(JSON.stringify(state({ returned: { stage: "build", reason: "x" } }))).ok).toBe(true);
+    expect(parseState(JSON.stringify({ ...state(), returned: { stage: "done", reason: "x" } })).ok).toBe(false);
+    expect(parseState(JSON.stringify({ ...state(), returned: { stage: "build" } })).ok).toBe(false);
+  });
+
   it("accepts a boolean built, and rejects another value", () => {
     expect(parseState(JSON.stringify(state({ built: true }))).ok).toBe(true);
     expect(parseState(JSON.stringify({ ...state(), built: "yes" })).ok).toBe(false);
@@ -106,10 +112,15 @@ describe("returnedTo", () => {
     expect(returnedTo(state({ stage: "tests" }), { target: "spec", ...order }).specVersion).toBe(1);
   });
 
-  it("sets size to full when returning to Plan from small size", () => {
-    const next = returnedTo(state({ stage: "tests", size: "small" }), { target: "plan", ...order });
-    expect(next.size).toBe("full");
-    expect(next.stage).toBe("plan");
+  it("records the stage and the reason of the return", () => {
+    expect(returnedTo(state({ stage: "build" }), { target: "tests", ...order }).returned).toEqual({ stage: "tests", reason: "weak test" });
+  });
+
+  it("starts a small change that becomes full again at Spec", () => {
+    const toPlan = returnedTo(state({ stage: "tests", size: "small" }), { target: "plan", ...order });
+    expect(toPlan).toMatchObject({ size: "full", stage: "spec", returned: { stage: "spec", reason: "weak test" } });
+    expect(returnedTo(state({ stage: "build", size: "small" }), { target: "build", size: "full", ...order })).toMatchObject({ size: "full", stage: "spec" });
+    expect(returnedTo(state({ stage: "build", size: "full" }), { target: "build", size: "full", ...order }).stage).toBe("build");
   });
 });
 
