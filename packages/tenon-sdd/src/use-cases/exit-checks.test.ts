@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { State } from "../entities/state.js";
 import { createFakeProject, RULES } from "../testing/fake-project.js";
@@ -72,6 +74,21 @@ describe("exitErrors", () => {
     project.write(`${DIR}/traceability.md`, TRACE("src/sort.txt"));
     expect(await exitErrors(deps, change, state({ stage: "build" }), rules)).toEqual([]);
     expect(project.read(`${DIR}/traceability.md`)).toContain("| passing | src/sort.txt | met |");
+  });
+});
+
+describe("buildErrors", () => {
+  it("runs the mutation command only when the other checks pass", async () => {
+    const { project, deps, change } = setup();
+    project.write(`${DIR}/plan.md`, "## Tasks\n- [x] T001 (test) [US1-S1] Test in tests/sort.txt\n- [x] T002 [NEW-R1, FAV-R-002] Sort in src/sort.txt\n");
+    project.write("tests/sort.txt", "sort-us1-s1|src/sort.txt\n");
+    project.write("src/sort.txt", "sorted\n");
+    project.write(`${DIR}/traceability.md`, TRACE("src/missing.txt"));
+    const rules = { ...(await readRules(project.root)), mutation: "touch mutation-ran && exit 1" };
+    expect((await exitErrors(deps, change, state({ stage: "build" }), rules)).join("\n")).not.toMatch(/mutation/);
+    expect(existsSync(join(project.root, "mutation-ran"))).toBe(false);
+    project.write(`${DIR}/traceability.md`, TRACE("src/sort.txt"));
+    expect((await exitErrors(deps, change, state({ stage: "build" }), rules)).join("\n")).toMatch(/The mutation command failed/);
   });
 });
 

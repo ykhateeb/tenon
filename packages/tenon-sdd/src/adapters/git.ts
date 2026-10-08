@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { relative, resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -70,18 +70,21 @@ export function createGit(root: string) {
     },
     /** Put the files back as they are in the commit. A file that the commit does not have is deleted. */
     restore: async (commit: string, paths: readonly string[]) => {
+      const outside = paths.filter((path) => {
+        const rel = relative(root, resolve(root, path));
+        return rel.startsWith("..") || isAbsolute(rel);
+      });
+      if (outside.length) throw new Error(`Path is outside the repository: ${outside.join(", ")}`);
       for (const path of paths) {
-        const resolved = resolve(root, path);
-        const rel = relative(root, resolved);
-        if (rel.startsWith("..") || resolve(rel) === rel) throw new Error(`Path is outside the repository: ${path}`);
         if (await succeeds("cat-file", "-e", `${commit}:${path}`)) await git("checkout", commit, "--", path);
-        else await rm(resolved, { force: true });
+        else await rm(resolve(root, path), { force: true });
       }
     },
     isCommitted: (path: string) => succeeds("cat-file", "-e", `HEAD:${path}`),
     fileAt: (ref: string, path: string) => git("show", `${ref}:${path}`).catch(() => undefined),
-    diff: (from: string, paths: readonly string[] = []) => git("diff", from, "HEAD", "--", ...paths),
-    diffStat: (from: string) => git("diff", "--stat", from, "HEAD"),
+    // A person's color.ui=always or diff.external setting must not reach the gate summary or the review diff.
+    diff: (from: string, paths: readonly string[] = []) => git("diff", "--no-color", "--no-ext-diff", from, "HEAD", "--", ...paths),
+    diffStat: (from: string) => git("diff", "--stat", "--no-color", "--no-ext-diff", from, "HEAD"),
     resetSoft: async (commit: string) => {
       await git("reset", "-q", "--soft", commit);
     },

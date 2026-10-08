@@ -52,6 +52,11 @@ describe("parsePlan", () => {
     expect(tasks()[5].refs).toEqual(["US1-S1", "NEW-R1"]);
   });
 
+  it("reads an upper-case tick as done", () => {
+    const result = parsePlan("- [X] T001 (test) [US1-S1] Test in tests/a.ts\n");
+    expect(result.ok && result.value[0].done).toBe(true);
+  });
+
   it("needs at least one task", () => {
     expect(parsePlan("# Plan\n").ok).toBe(false);
   });

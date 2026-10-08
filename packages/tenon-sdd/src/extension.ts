@@ -36,6 +36,6 @@ async function runSdd(pi: ExtensionAPI, guidesDir: string, args: string, ctx: Ex
   try {
     await (request ? runner.start(request) : runner.resume());
   } catch (error) {
-    deps.person.notify(`/sdd stopped: ${(error as Error).message}`, "error");
+    deps.person.notify(`/sdd stopped: ${error instanceof Error ? error.message : String(error)}`, "error");
   }
 }

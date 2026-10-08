@@ -41,6 +41,11 @@ describe("parseAreaSpec and renderAreaSpec", () => {
     expect(renderAreaSpec(area())).toBe(AREA);
   });
 
+  it("reject a line before the first section", () => {
+    const result = parseAreaSpec(AREA.replace("Prefix: FAV", "Some text\nPrefix: FAV"));
+    expect(result.ok ? "" : result.errors.join("\n")).toMatch(/line 2: .*before the first section/);
+  });
+
   it("need a title and a prefix line", () => {
     const result = parseAreaSpec("## Current behavior\n");
     expect(result.ok ? "" : result.errors.join("\n")).toMatch(/# Area spec[\s\S]*Prefix/);

@@ -190,6 +190,8 @@ function readAreaLine(area: AreaSpec, section: string, line: string, lineNum: nu
     else if (line) {
       errors.push(`area spec line ${lineNum}: this is not a coverage line: "${line}".`);
     }
+  } else if (section === "" && line && !title && !header) {
+    errors.push(`area spec line ${lineNum}: this text is before the first section: "${line}".`);
   }
 }
 

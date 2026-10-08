@@ -62,6 +62,29 @@ describe("parseSpec", () => {
     expect(errorsOf(SPEC.replace("NEW-Q1", "NEW-R1"))).toMatch(/NEW-R1 more than one time/);
   });
 
+  it("rejects a duplicate story ID", () => {
+    expect(errorsOf(SPEC.replace("### US2 — Newest first by default (P2)", "### US1 — Newest first by default (P2)"))).toMatch(/story US1 is in spec.md more than one time/);
+  });
+
+  it("rejects a second, different prefix for a new area", () => {
+    const spec = `# Spec: Cards
+## User stories
+### US1 — Cards (P1)
+- [US1-S1] Given a card, When I pay, Then it works
+
+## Baseline (from code)
+### sdd/areas/checkout.md (new, prefix CHK)
+- BASE-R1: Cart total includes tax.
+    Intended? yes
+
+## Delta
+### sdd/areas/checkout.md (new, prefix CHE)
+- ADDED NEW-R1: Saved cards are offered first
+`;
+    expect(errorsOf(spec)).toMatch(/checkout has the prefix CHK, not CHE/);
+    expect(errorsOf(spec.replace("prefix CHE", "prefix CHK"))).toBe("");
+  });
+
   it("rejects a scenario with no story", () => {
     expect(errorsOf(SPEC.replace("[US2-S1]", "[US9-S1]"))).toMatch(/US9-S1 has no story US9/);
   });

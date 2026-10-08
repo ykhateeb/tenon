@@ -53,7 +53,8 @@ export function parseSpec(markdown: string): ParseResult<Spec> {
       return;
     }
     const at = `spec.md line ${index + 1}`;
-    const newArea = readAreaHeading(spec, text);
+    const line: Line = { text, next: texts[index + 1] ?? "", at };
+    const newArea = readAreaHeading(spec, errors, line);
     if (newArea !== undefined) {
       area = newArea;
     } else if ((section === DELTA || section === BASELINE) && text.startsWith("### ")) {
@@ -61,7 +62,6 @@ export function parseSpec(markdown: string): ParseResult<Spec> {
       area = undefined;
     }
     readCommonLine(spec, text);
-    const line: Line = { text, next: texts[index + 1] ?? "", at };
     if (section === DELTA) readDeltaLine(spec, errors, line, area);
     if (section === BASELINE) readBaselineLine(spec, errors, line, area);
   });
@@ -79,11 +79,13 @@ export function sizeErrors(spec: Spec, { size, type }: Pick<State, "size" | "typ
   return errors;
 }
 
-function readAreaHeading(spec: Spec, text: string): string | undefined {
+function readAreaHeading(spec: Spec, errors: string[], { text, at }: Line): string | undefined {
   const match = AREA.exec(text);
   if (!match) return undefined;
   const [, area, prefix] = match;
-  if (prefix && !spec.newAreas.some((known) => known.area === area)) spec.newAreas.push({ area, prefix });
+  const known = spec.newAreas.find((item) => item.area === area);
+  if (prefix && !known) spec.newAreas.push({ area, prefix });
+  if (prefix && known && known.prefix !== prefix) errors.push(`${at}: the new area ${area} has the prefix ${known.prefix}, not ${prefix}.`);
   return area;
 }
 
@@ -152,6 +154,7 @@ function readBaselineLine(spec: Spec, errors: string[], { text, next, at }: Line
 function crossErrors(spec: Spec): string[] {
   const stories = new Set(spec.stories.map((story) => story.id));
   return [
+    ...duplicates(spec.stories.map((story) => story.id)).map((id) => `The story ${id} is in spec.md more than one time.`),
     ...duplicates(spec.delta.map((item) => item.id)).map((id) => `The delta names ${id} more than one time.`),
     ...duplicates(spec.scenarios.map((scenario) => scenario.id)).map((id) => `The scenario ${id} is in spec.md more than one time.`),
     ...spec.scenarios.filter((scenario) => !stories.has(scenario.story)).map((scenario) => `The scenario ${scenario.id} has no story ${scenario.story}.`),

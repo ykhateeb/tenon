@@ -50,17 +50,17 @@ export async function protectedErrors(deps: Deps, change: Change, policy: Policy
   const head = await deps.git.head();
   if (head !== since) {
     await deps.git.resetSoft(since);
-    errors.push("Do not run git commit. The runner commits. Your commits were undone; their changes stay in the working tree.");
+    errors.push("The runner undid a commit made during the stage. Its changes stay in the working tree.");
   }
 
   const changed = [...(await deps.git.changedSince(since, own)), ...(await deps.git.changedSince(since, otherChanges))];
   if (changed.length) {
     await deps.git.restore(since, changed);
-    errors.push(`You changed ${changed.join(", ")}, which this stage cannot change. The runner restored the files. Use request_return if a change there is necessary.`);
+    errors.push(`${changed.join(", ")} cannot change in this stage. The runner restored them.`);
   }
   if ((await readText(deps.root, pathOf(change, "state.json"))) !== stateText(state)) {
     await writeState(change, state);
-    errors.push("You changed state.json. The runner restored it. Only the runner changes state.json.");
+    errors.push("state.json differed from the runner's state. The runner restored it.");
   }
   return errors;
 }

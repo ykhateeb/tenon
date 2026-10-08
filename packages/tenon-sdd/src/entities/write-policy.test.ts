@@ -35,6 +35,8 @@ describe("blockReason", () => {
     ["build", "src/../sdd/areas/favorites.md", /inside the project/],
     ["build", "./sdd/areas/favorites.md", /Ship/],
     ["build", "src//a.ts", undefined],
+    ["build", "sdd/areas", /Ship/],
+    ["build", "sdd/changes", /frozen/],
     ["review", `${DIR}/outcome.md`, undefined],
     ["review", "src/a.ts", /review stage/],
   ])("%s stage, %s", (kind, path, expected) => {

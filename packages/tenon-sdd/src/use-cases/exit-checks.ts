@@ -119,7 +119,9 @@ async function buildErrors(deps: Deps, change: Change, state: State, rules: Rule
   if (!trace.ok) return [...unticked, ...trace.errors];
   const rows = withVerdicts(withStatuses(trace.value.rows, tier.cases, "pass"), (path) => existsSync(join(deps.root, path)));
   await writeTrace(change, { ...trace.value, rows });
-  return [...unticked, ...failingCases(tier), ...buildStageErrors(rows), ...(await mutationErrors(deps, rules))];
+  const errors = [...unticked, ...failingCases(tier), ...buildStageErrors(rows)];
+  // One mutation run can take most of the timeout, so it runs only when all else passes.
+  return errors.length ? errors : mutationErrors(deps, rules);
 }
 
 async function untickedErrors(change: Change, onlyTests: boolean): Promise<string[]> {

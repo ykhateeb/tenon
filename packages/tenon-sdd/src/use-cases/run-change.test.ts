@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { AREA, createFakeProject, RULES, type FakeProject } from "../testing/fake-project.js";
 import { APPROVE, change, createFakeAgent, createFakePerson, STOP, testDeps, type AgentScript } from "../testing/fakes.js";
@@ -145,6 +145,9 @@ describe("createRunner", () => {
     expect(project.run("log", "--format=%s")).toContain("sdd(sort): G1 approved");
     expect(project.run("status", "--porcelain")).toBe("");
     expect(notices.at(-1)).toBe("The change is ready. Merge the branch sdd/2026-10-08-sort into main.");
+    const diffPath = /Diff of the change: (.+)/.exec(runs[6].message)?.[1] ?? "";
+    expect(diffPath).toMatch(/\.diff$/);
+    expect(existsSync(dirname(diffPath))).toBe(false);
   });
 
   it("runs the small size: no Plan, and only G3", async () => {
@@ -165,6 +168,35 @@ describe("createRunner", () => {
     expect(runs[1].title).toBe("sdd: spec change (sort)");
     expect(runs[1].message).toContain("The person asked for this change at G1: Add an edge case.");
     expect(stateOf(project).stage).toBe("done");
+  });
+
+  it("advances without G1 when the person's change at G1 makes the change small", async () => {
+    const project = createFakeProject();
+    const work = sortScript(project);
+    const script: AgentScript = async (run, count) => {
+      if (run.title === "sdd: build (sort)") {
+        project.write("src/sort.txt", "sorted\n");
+        project.write(`${run.policy.changeDir}/traceability.md`, trace("sort-us1-s1", ["FAV-R-002"], "src/sort.txt"));
+      }
+      if (run.title !== "sdd: spec change (sort)") return work(run, count);
+      project.write(`${run.policy.changeDir}/spec.md`, BUG_SPEC);
+      return { classification: { type: "bug", size: "small" } };
+    };
+    const { runner: sdd, runs, asked } = runner(project, script, { inputs: ["sort"], gates: [change("It is only a bug."), STOP] });
+    await sdd.start("Sort favorites by date");
+    expect(gatesOf(asked)).toEqual(["G1", "G3"]);
+    expect(runs[2].title).toBe("sdd: tests (sort)");
+  });
+
+  it("refuses to start when the committed rules do not parse", async () => {
+    const project = createFakeProject();
+    project.write("sdd/rules.md", "# Project Rules\n");
+    project.run("commit", "-qam", "break the rules");
+    const { runner: sdd, runs, notices } = runner(project, sortScript(project), { inputs: ["sort"] });
+    await sdd.start("Sort favorites by date");
+    expect(notices[0]).toMatch(/^Correct sdd\/rules.md first\. It does not parse: /);
+    expect(project.run("branch", "--list", "sdd/*")).toBe("");
+    expect(runs).toEqual([]);
   });
 
   it("returns from Build to Tests and asks G2 again", async () => {
@@ -350,6 +382,7 @@ describe("createRunner", () => {
     await second.runner.resume();
     expect(second.runs[0].title).toBe("sdd: tests (sort)");
     expect(second.runs[0].message).toContain("sdd/areas/favorites.md");
+    expect(second.notices.join("\n")).toContain("sdd/areas/favorites.md");
     expect(project.run("show", `${stateOf(project).gates.find((gate) => gate.gate === "G2")?.commit}:sdd/areas/favorites.md`)).toBe(AREA.trim());
     expect(stateOf(project).stage).toBe("done");
   });

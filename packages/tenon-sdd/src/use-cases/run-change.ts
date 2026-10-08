@@ -1,6 +1,6 @@
-import { mkdtemp, realpath, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { upsertSection } from "../entities/markdown.js";
 import { parseRules, type Rules } from "../entities/rules.js";
 import { approvalOf, gateAfter, nextStage, parseState, stageOf, type State } from "../entities/state.js";
@@ -67,6 +67,9 @@ async function startRefusal(deps: Deps): Promise<string | undefined> {
   if ((await deps.git.currentBranch()) === "") return "Switch to a branch first. /sdd does not run on a detached HEAD.";
   if (!(await deps.git.isClean())) return "Commit or stash your work first. /sdd needs a clean working tree.";
   if ((await deps.git.currentBranch()).startsWith("sdd/")) return "A change already runs on this branch. Run /sdd with no request to continue it.";
+  const rules = await deps.git.fileAt("HEAD", RULES_PATH);
+  const parsedRules = rules === undefined ? undefined : parseRules(rules);
+  if (parsedRules && !parsedRules.ok) return `Correct ${RULES_PATH} first. It does not parse: ${parsedRules.errors.join(" ")}`;
   return undefined;
 }
 
@@ -75,13 +78,13 @@ async function drive(deps: Deps, change: Change, resumed: boolean): Promise<void
   let state = resumed ? await committedState(deps, change) : await readState(change);
   if ((await isSetupPending(deps, change)) && (await setupRules(deps, change, state)) === "stopped") return;
   let resume = resumed ? await restoreOnResume(deps, change, state) : undefined;
+  for (const line of resume ?? []) deps.person.notify(line, "warning");
   if (resumed) {
     if (!(await mergedBase(deps, state))) return;
     state = await reopenInvalidGates(deps, change, state);
   }
   while (state.stage !== "done") {
     if (!resume && !(await mergedBase(deps, state))) return;
-    if (state.stage === "ship") for (const line of resume ?? []) deps.person.notify(line, "warning");
     const step = state.stage === "ship" ? await ship(deps, change, state, resume !== undefined) : await workStage(deps, change, state, resume);
     resume = undefined;
     if (step.kind === "stopped") return;
@@ -208,10 +211,11 @@ async function endOf(deps: Deps, change: Change, end: Exclude<Checked, { kind: "
 }
 
 async function gateOrAdvance(deps: Deps, change: Change, state: State, rules: Rules): Promise<Step> {
-  const gate = gateAfter(state.stage, state.size);
-  if (!gate) return { kind: "next", state: await advance(deps, change, state) };
   let current = state;
   for (;;) {
+    // A change at the gate can change the size, and with it the gate.
+    const gate = gateAfter(current.stage, current.size);
+    if (!gate) return { kind: "next", state: await advance(deps, change, current) };
     const reviewedHead = await deps.git.head();
     const answer = await deps.person.gate(`${gate}: ${GATE_QUESTIONS[gate]}`, await gateSummary(deps, change, gate, current, rules));
     if (answer.kind === "stop") return STOPPED;
@@ -270,7 +274,9 @@ async function isReviewDone(deps: Deps, change: Change, rules: Rules): Promise<b
 async function reviewRound(deps: Deps, change: Change, state: State, rules: Rules, ids: ReadonlyMap<string, string>, lines: readonly string[]): Promise<Step | Reviewed> {
   const diffPath = await writeReviewDiff(deps, change, state);
   const run = await stageRun(deps, change, state, rules, "review", [`Diff of the change: ${diffPath}`, ...lines]);
-  const checked = await checkedStage(deps, change, state, [run], (_latest, findings) => shipErrors(deps, rules, change, findings !== undefined));
+  const checked = await checkedStage(deps, change, state, [run], (_latest, findings) => shipErrors(deps, rules, change, findings !== undefined)).finally(() =>
+    rm(dirname(diffPath), { recursive: true, force: true }),
+  );
   if (checked.kind !== "passed") return endOf(deps, change, checked);
   const findings = checked.findings ?? [];
   const reviewed = await withReturnDone(change, checked.state);
@@ -305,7 +311,7 @@ async function shipGate(deps: Deps, change: Change, state: State, rules: Rules, 
   }
 }
 
-/** The reviewer reads the diff from a file outside the project, so the review stage needs no bash. */
+/** The reviewer reads the diff from a file outside the project, so the review stage needs no bash. The review round deletes its folder. */
 async function writeReviewDiff(deps: Deps, change: Change, state: State): Promise<string> {
   const path = join(await mkdtemp(join(tmpdir(), "sdd-review-")), `${change.slug}.diff`);
   await writeFile(path, await deps.git.diff(await deps.git.forkPoint(state.base)));

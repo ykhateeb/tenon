@@ -11,8 +11,11 @@ export function runCommand(command: string, { cwd, timeoutMs }: { cwd: string; t
     const child = spawn(command, { cwd, shell: true, detached: true, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     let timedOut = false;
-    const keep = (chunk: Buffer) => {
-      output = (output + chunk.toString()).slice(-MAX_OUTPUT);
+    // The decoder keeps a character that a chunk boundary splits.
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    const keep = (chunk: string) => {
+      output = (output + chunk).slice(-MAX_OUTPUT);
     };
     child.stdout.on("data", keep);
     child.stderr.on("data", keep);

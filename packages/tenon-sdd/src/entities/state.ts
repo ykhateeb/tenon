@@ -32,6 +32,7 @@ export type State = {
 export type Return = { target: WorkStage; reason: string; by: string; at: string; size?: "full" };
 
 const GATE_STAGE: Record<Gate, WorkStage> = { G1: "spec", G2: "tests", G3: "ship" };
+const ENTRY_FIELDS: Record<GateEntry["result"], string[]> = { approved: ["commit", "by", "at"], reopened: ["reason", "by", "at"] };
 
 export function parseState(json: string): ParseResult<State> {
   let value: unknown;
@@ -46,6 +47,8 @@ export function parseState(json: string): ParseResult<State> {
   for (const key of ["owner", "base", "request"]) {
     if (typeof value[key] !== "string") errors.push(`state.json needs the text field "${key}".`);
   }
+  // The base goes to git as an argument. No branch name starts with "-".
+  if (typeof value.base === "string" && value.base.startsWith("-")) errors.push('state.json: "base" cannot start with "-".');
   if (typeof value.specVersion !== "number" || !Number.isInteger(value.specVersion) || value.specVersion < 1) {
     errors.push("state.json needs the integer field \"specVersion\" with a value of 1 or more.");
   }
@@ -53,21 +56,7 @@ export function parseState(json: string): ParseResult<State> {
     errors.push("state.json needs the integer field \"reviewRounds\" with a value of 0 or more.");
   }
   if (!Array.isArray(value.gates)) errors.push('state.json needs the list "gates".');
-  else {
-    for (let i = 0; i < value.gates.length; i++) {
-      const entry = value.gates[i];
-      if (!isRecord(entry)) {
-        errors.push(`state.json: gates[${i}] must be an object.`);
-        continue;
-      }
-      if (!GATES.includes(entry.gate as Gate)) {
-        errors.push(`state.json: gates[${i}] has an unknown gate "${String(entry.gate)}".`);
-      }
-      if (entry.result !== "approved" && entry.result !== "reopened") {
-        errors.push(`state.json: gates[${i}] has an unknown result "${String(entry.result)}".`);
-      }
-    }
-  }
+  else errors.push(...value.gates.flatMap((entry: unknown, i) => gateEntryErrors(entry, `state.json: gates[${i}]`)));
   if (value.size !== undefined && value.size !== "full" && value.size !== "small") {
     errors.push(`state.json has an unknown size "${String(value.size)}".`);
   }
@@ -142,6 +131,14 @@ export function classificationError(state: State, { type, size }: Classification
   if (type === "feature" && size === "small") return "A feature is always full size.";
   if (size === "small" && state.size === "full" && approvalOf(state, "G1")) return "A full change cannot become small after G1.";
   return undefined;
+}
+
+function gateEntryErrors(entry: unknown, at: string): string[] {
+  if (!isRecord(entry)) return [`${at} must be an object.`];
+  const errors = GATES.includes(entry.gate as Gate) ? [] : [`${at} has an unknown gate "${String(entry.gate)}".`];
+  if (entry.result !== "approved" && entry.result !== "reopened") return [...errors, `${at} has an unknown result "${String(entry.result)}".`];
+  const missing = ENTRY_FIELDS[entry.result].filter((key) => typeof entry[key] !== "string");
+  return [...errors, ...missing.map((key) => `${at} needs the text field "${key}".`)];
 }
 
 function isReturned(value: unknown): boolean {

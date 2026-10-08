@@ -20,9 +20,10 @@ export function parseTraceability(markdown: string): ParseResult<Traceability> {
   const lines = markdown.split(/\r?\n/);
   const start = lines.findIndex((line) => cells(line).join("|") === COLUMNS.join("|"));
   if (start < 0) return { ok: false, errors: [`traceability.md needs a table with the columns ${COLUMNS.join(" | ")}.`] };
-  let end = start + 2;
+  const first = start + (isSeparator(lines[start + 1] ?? "") ? 2 : 1);
+  let end = first;
   while (end < lines.length && lines[end].trim().startsWith("|")) end++;
-  return { ok: true, value: { head: lines.slice(0, start), rows: lines.slice(start + 2, end).map((line) => toRow(cells(line))), footer: lines.slice(end) } };
+  return { ok: true, value: { head: lines.slice(0, start), rows: lines.slice(first, end).map((line) => toRow(cells(line))), footer: lines.slice(end) } };
 }
 
 export function renderTraceability(trace: Traceability): string {
@@ -92,6 +93,11 @@ function wantedStatuses(row: Row, mode: TestMode): string[] {
   if (row.scenario === REMOVED) return [GONE];
   if (mode === "pass" || row.level === CHARACTERIZATION) return ["passing"];
   return mode === "after-build" ? ["passing", EXPECTED_FAILURE] : [EXPECTED_FAILURE];
+}
+
+function isSeparator(line: string): boolean {
+  const values = cells(line);
+  return values.length > 0 && values.every((value) => /^:?-+:?$/.test(value));
 }
 
 function cells(line: string): string[] {

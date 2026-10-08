@@ -98,6 +98,19 @@ describe("setupRules", () => {
     await expect(setupRules(deps, started, await readState(started))).rejects.toThrow('The branch changed to "other". Switch back to sdd/2026-10-08-sort and run /sdd again.');
   });
 
+  it("warns the person when the approved full tier exits with an error", async () => {
+    const project = createFakeProject({ withRules: false });
+    project.write("tests/broken.txt", "broken-test|src/missing.txt\n");
+    project.run("add", "-A");
+    project.run("commit", "-qm", "a failing test");
+    const { agent } = createFakeAgent(async () => project.write("sdd/rules.md", RULES));
+    const { person, notices } = createFakePerson({ gates: [APPROVE] });
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    expect(await setupRules(deps, started, await readState(started))).toBe("approved");
+    expect(notices).toEqual(["The Full tier exits with an error. Build needs it to pass."]);
+  });
+
   it("replaces the draft commits with one approval commit", async () => {
     const project = createFakeProject({ withRules: false });
     const { agent } = createFakeAgent(async () => project.write("sdd/rules.md", RULES));

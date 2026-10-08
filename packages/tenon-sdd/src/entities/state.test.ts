@@ -46,6 +46,16 @@ describe("parseState", () => {
     expect(parseState(JSON.stringify({ ...state(), returned: { stage: "build" } })).ok).toBe(false);
   });
 
+  it("rejects a gate entry with missing fields", () => {
+    expect(parseState(JSON.stringify(state({ gates: [approved("G1")] }))).ok).toBe(true);
+    expect(parseState(JSON.stringify({ ...state(), gates: [{ gate: "G1", result: "approved", by: "Sam", at: "2026-10-08" }] })).ok).toBe(false);
+    expect(parseState(JSON.stringify({ ...state(), gates: [{ gate: "G1", result: "reopened", by: "Sam", at: "2026-10-08" }] })).ok).toBe(false);
+  });
+
+  it("rejects a base that git could read as an option", () => {
+    expect(parseState(JSON.stringify(state({ base: "--output=x" }))).ok).toBe(false);
+  });
+
   it("accepts a boolean built, and rejects another value", () => {
     expect(parseState(JSON.stringify(state({ built: true }))).ok).toBe(true);
     expect(parseState(JSON.stringify({ ...state(), built: "yes" })).ok).toBe(false);

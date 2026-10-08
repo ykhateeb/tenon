@@ -53,6 +53,21 @@ describe("parseRules", () => {
     expect(result.ok && result.value.fullTier).toBe("npm test");
   });
 
+  it("reads Mutation: None in any case as no mutation command", () => {
+    const result = parseRules(RULES.replace("Mutation: none", "Mutation: None"));
+    expect(result.ok && result.value.mutation).toBeUndefined();
+  });
+
+  it("ends the Commands section at any heading", () => {
+    const result = parseRules(`${RULES}\n### Old commands\n- Full tier: wrong\n`);
+    expect(result.ok && result.value.fullTier).toBe("npm test");
+  });
+
+  it("removes a leading ./ from each glob", () => {
+    const result = parseRules(RULES.replace("reports/*.xml,", "./reports/*.xml,").replace("e2e/**/*.e2e.ts", "./e2e/**/*.e2e.ts"));
+    expect(result.ok && result.value).toMatchObject({ junitReports: ["reports/*.xml", "e2e-reports/*.xml"], testFiles: ["**/*.test.ts", "e2e/**/*.e2e.ts"] });
+  });
+
   it("accepts CRLF line ends", () => {
     expect(parseRules(RULES.replaceAll("\n", "\r\n")).ok).toBe(true);
   });

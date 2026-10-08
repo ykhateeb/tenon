@@ -62,6 +62,7 @@ export async function setupRules(deps: Deps, change: Change, state: State): Prom
         continue; // Show gate again
       }
 
+      if (tier.code !== 0) deps.person.notify("The Full tier exits with an error. Build needs it to pass.", "warning");
       // The draft commits of this setup become one commit with the same content.
       await deps.git.resetSoft(before);
       await deps.git.commitAll(rulesApprovedSubject(change));

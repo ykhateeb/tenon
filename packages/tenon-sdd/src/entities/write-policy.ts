@@ -38,9 +38,9 @@ export function blockReason(path: string, policy: Policy): string | undefined {
 function protectedReason(target: string, dir: string, policy: Policy): string | undefined {
   if (target === ".." || target.startsWith("../")) return "Write only inside the project.";
   if (target === `${dir}/state.json`) return "state.json changes only through the runner.";
-  if (target.startsWith("sdd/areas/")) return "Only Ship changes the area specs. Write the change in the delta of spec.md.";
+  if (target === "sdd/areas" || target.startsWith("sdd/areas/")) return "Only Ship changes the area specs. Write the change in the delta of spec.md.";
   if (target === "sdd/rules.md" && policy.kind !== "setup") return "rules.md changes only by review, not inside a change.";
-  if (target.startsWith("sdd/changes/") && !target.startsWith(`${dir}/`)) return "The folders of other changes are frozen.";
+  if (target === "sdd/changes" || (target.startsWith("sdd/changes/") && !target.startsWith(`${dir}/`))) return "The folders of other changes are frozen.";
   if (policy.specLocked && target === `${dir}/spec.md`) return "spec.md is approved (G1). Use request_return with the stage spec.";
   if (policy.lockedTests.some((test) => test.toLowerCase() === target)) return "This test is approved (G2). Use request_return with the stage tests.";
   return undefined;

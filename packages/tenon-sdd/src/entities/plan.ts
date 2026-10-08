@@ -12,7 +12,7 @@ export type Task = {
 };
 
 const PHASE = /^### (.+)$/;
-const TASK = /^- \[( |x)\] (T\d{3,}) (.*)$/;
+const TASK = /^- \[( |x|X)\] (T\d{3,}) (.*)$/;
 const BRACKETS = /\[([^\]]+)\]/g;
 const FILE = /\bin (\S+?)[;,]?(?=\s|$)/g;
 
@@ -43,7 +43,7 @@ function toTask([, mark, id, rest]: RegExpExecArray, phase: string): Task {
   const groups = [...rest.matchAll(BRACKETS)].map((match) => match[1]);
   return {
     id,
-    done: mark === "x",
+    done: mark !== " ",
     isTest: rest.includes("(test)"),
     isParallel: groups.includes("P"),
     refs: groups.filter((group) => group !== "P").flatMap((group) => group.split(",").map((ref) => ref.trim())),

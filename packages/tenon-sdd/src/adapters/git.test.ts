@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createGit } from "./git.js";
 
@@ -141,6 +141,26 @@ describe("createGit", () => {
   it("rejects restore with path traversal", async () => {
     const { git } = repository();
     await expect(git.restore("HEAD", ["../outside.txt"])).rejects.toThrow("Path is outside the repository");
+  });
+
+  it("checks all paths before it restores any, and leaves an outside file alone", async () => {
+    const { root, git } = repository();
+    const outside = `${root}-outside.txt`;
+    writeFileSync(outside, "keep\n");
+    writeFileSync(join(root, "a.txt"), "changed\n");
+    await expect(git.restore("HEAD", ["a.txt", `../${basename(outside)}`])).rejects.toThrow("Path is outside the repository");
+    expect(readFileSync(join(root, "a.txt"), "utf8")).toBe("changed\n");
+    expect(readFileSync(outside, "utf8")).toBe("keep\n");
+  });
+
+  it("writes a plain diff when the person sets color.ui=always", async () => {
+    const { root, run, git } = repository();
+    const base = await git.head();
+    run("config", "color.ui", "always");
+    writeFileSync(join(root, "a.txt"), "two\n");
+    await git.commitAll("edit");
+    expect(await git.diff(base)).not.toContain("\u001b[");
+    expect(await git.diffStat(base)).not.toContain("\u001b[");
   });
 
   it("resets to a commit with changes in the staging area", async () => {

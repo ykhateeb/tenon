@@ -29,7 +29,7 @@ export function parseRules(markdown: string): ParseResult<Rules> {
     junitReports: list(required("JUnit reports")),
     fastTier: values.get("Fast tier"),
     testFiles: list(required("Test files")),
-    mutation: mutation && mutation !== "none" ? mutation : undefined,
+    mutation: mutation && mutation.toLowerCase() !== "none" ? mutation : undefined,
     innerTdd: innerTdd === "required" ? "required" : "optional",
   };
   for (const glob of rules.junitReports.filter((report) => globBase(report) === "")) {
@@ -42,13 +42,14 @@ function commandValues(markdown: string): Map<string, string> {
   const values = new Map<string, string>();
   let isCommands = false;
   for (const line of markdown.split(/\r?\n/).map((text) => text.trim())) {
-    if (line.startsWith("## ")) isCommands = line === "## Commands";
+    if (line.startsWith("#")) isCommands = line === "## Commands";
     const match = isCommands ? COMMAND_LINE.exec(line) : null;
     if (match) values.set(match[1].trim(), match[2].trim());
   }
   return values;
 }
 
+/** Globs match paths from the project root, which have no leading "./". */
 function list(value: string): string[] {
-  return value.split(",").map((item) => item.trim()).filter(Boolean);
+  return value.split(",").map((item) => item.trim().replace(/^\.\//, "")).filter(Boolean);
 }

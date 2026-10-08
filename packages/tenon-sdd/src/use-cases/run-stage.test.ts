@@ -64,8 +64,10 @@ describe("protectedErrors", () => {
     project.write("sdd/changes/2026-09-01-old/spec.md", "new file in another change\n");
     project.write(`${change.dir}/state.json`, "{}\n");
     const errors = await protectedErrors(d, change, POLICY, state, since);
-    expect(errors).toHaveLength(2);
-    expect(errors[0]).toMatch(/sdd\/areas\/favorites.md, sdd\/changes\/2026-09-01-old\/spec.md/);
+    expect(errors).toEqual([
+      "sdd/areas/favorites.md, sdd/changes/2026-09-01-old/spec.md cannot change in this stage. The runner restored them.",
+      "state.json differed from the runner's state. The runner restored it.",
+    ]);
     expect(project.read("sdd/areas/favorites.md")).toBe(AREA);
     expect(project.read(`${change.dir}/state.json`)).toBe(stateText(state));
     expect(await protectedErrors(d, change, POLICY, state, since)).toEqual([]);
@@ -79,7 +81,7 @@ describe("protectedErrors", () => {
     project.write("sdd/areas/favorites.md", "edited\n");
     project.run("commit", "-qam", "agent edit");
     const errors = await protectedErrors(d, change, POLICY, state, since);
-    expect(errors[0]).toContain("Do not run git commit");
+    expect(errors[0]).toBe("The runner undid a commit made during the stage. Its changes stay in the working tree.");
     expect(await d.git.head()).toBe(since);
     expect(project.read("sdd/areas/favorites.md")).toBe(AREA);
   });

@@ -13,7 +13,7 @@ export type ChangeFile = "state.json" | "spec.md" | "plan.md" | "traceability.md
 export const RULES_PATH = "sdd/rules.md";
 export const AREAS_DIR = "sdd/areas";
 
-const CHANGE_BRANCH = /^sdd\/(\d{4}-\d{2}-\d{2}-(.+))$/;
+const CHANGE_BRANCH = /^sdd\/(\d{4}-\d{2}-\d{2}-([a-z0-9]+(?:-[a-z0-9]+)*))$/;
 
 export function changeOf(root: string, branch: string): Change | undefined {
   const match = CHANGE_BRANCH.exec(branch);

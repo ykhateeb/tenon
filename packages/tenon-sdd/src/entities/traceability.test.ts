@@ -38,6 +38,11 @@ describe("parseTraceability and renderTraceability", () => {
     expect(renderTraceability(parsedTrace)).toBe(TRACE);
   });
 
+  it("keep the first row when the separator line is missing", () => {
+    const lines = TRACE.split("\n");
+    expect(trace(lines.filter((_line, index) => index !== 2).join("\n")).rows.map((row) => row.id)).toEqual(["NEW-R1", "FAV-R-002", "NEW-Q1", "FAV-R-003"]);
+  });
+
   it("need the table with the fixed columns", () => {
     expect(parseTraceability("# Traceability\n| ID | Test |\n").ok).toBe(false);
   });
