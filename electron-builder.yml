@@ -5,6 +5,7 @@ directories:
 files:
   - out/**
   - packages/tenon-canvas/skills/**
+  - packages/tenon-sdd/guides/**
 asarUnpack:
   # pi reads its own files (themes, export templates) and loads extensions with jiti.
   - node_modules/@earendil-works/**

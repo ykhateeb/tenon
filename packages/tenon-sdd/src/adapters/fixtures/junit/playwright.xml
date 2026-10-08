@@ -1,0 +1,11 @@
+<testsuites id="" name="" tests="2" failures="1" skipped="0" errors="0" time="3.1">
+<testsuite name="favorites.spec.ts" timestamp="2026-10-08T10:00:00.000Z" hostname="chromium" tests="2" failures="1" skipped="0" time="2.9" errors="0">
+<testcase name="favorites-sorting-us2-s1 newest at top" classname="favorites.spec.ts" time="1.2">
+</testcase>
+<testcase name="favorites-sorting-us1-s1 sort by date" classname="favorites.spec.ts" time="1.7">
+<failure message="favorites.spec.ts:12:5 sort by date" type="FAILURE">
+<![CDATA[  Error: expect(locator).toHaveText(expected) <testcase> inside CDATA ]]>
+</failure>
+</testcase>
+</testsuite>
+</testsuites>

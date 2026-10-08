@@ -9,7 +9,8 @@
     "#preload": "./src/preload/index.ts",
     "#core/*": "./src/core/*",
     "#renderer/*": "./src/renderer/src/*",
-    "#canvas/*": "./packages/tenon-canvas/src/*"
+    "#canvas/*": "./packages/tenon-canvas/src/*",
+    "#sdd/*": "./packages/tenon-sdd/src/*"
   },
   "main": "out/main/index.js",
   "scripts": {

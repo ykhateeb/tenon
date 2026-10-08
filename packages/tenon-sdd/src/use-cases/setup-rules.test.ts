@@ -1,0 +1,141 @@
+import { describe, expect, it } from "vitest";
+import { existsSync } from "node:fs";
+import { AREA, createFakeProject, RULES } from "../testing/fake-project.js";
+import { APPROVE, createFakeAgent, createFakePerson, testDeps } from "../testing/fakes.js";
+import { readState } from "./change.js";
+import { setupRules } from "./setup-rules.js";
+import { startChange } from "./start-change.js";
+
+describe("setupRules", () => {
+  it("runs the setup session until the person approves rules.md, then commits it", async () => {
+    const project = createFakeProject({ withRules: false });
+    const { agent, runs } = createFakeAgent(async () => project.write("sdd/rules.md", RULES));
+    const { person, asked } = createFakePerson({ gates: [{ kind: "change", feedback: "Name the approvers." }, APPROVE] });
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    expect(await setupRules(deps, started, await readState(started))).toBe("approved");
+    expect(runs.map((run) => run.policy.kind)).toEqual(["setup", "setup"]);
+    expect(runs[1].message).toContain("Name the approvers.");
+    expect(asked).toEqual(["Approve sdd/rules.md?", "Approve sdd/rules.md?"]);
+    expect(await project.git.isCommitted("sdd/rules.md")).toBe(true);
+  });
+
+  it("never runs the full tier if the person stops at the first gate", async () => {
+    const project = createFakeProject({ withRules: false });
+    const markerPath = `${project.root}/reports/marker-setup-tier`;
+    const rulesWithMarker = RULES.replace(
+      "Full tier: node fake-tests.mjs",
+      `Full tier: mkdir -p ${project.root}/reports && touch ${markerPath} && node fake-tests.mjs`
+    );
+    const { agent } = createFakeAgent(async () => project.write("sdd/rules.md", rulesWithMarker));
+    const { person } = createFakePerson({ gates: [{ kind: "stop" }] });
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    expect(await setupRules(deps, started, await readState(started))).toBe("stopped");
+    expect(existsSync(markerPath)).toBe(false);
+  });
+
+  it("asks the person again even when the agent changes nothing after a failed full tier", async () => {
+    const project = createFakeProject({ withRules: false });
+    const markerPath = `${project.root}/reports/.marker-setup-tier-2`;
+    const rulesWithMarker = RULES.replace(
+      "Full tier: node fake-tests.mjs",
+      `Full tier: mkdir -p ${project.root}/reports && if [ -f ${markerPath} ]; then node fake-tests.mjs; else touch ${markerPath} && exit 1; fi`
+    );
+    let callCount = 0;
+    const { agent, runs: agentRuns } = createFakeAgent(async () => {
+      callCount++;
+      if (callCount === 1) {
+        project.write("sdd/rules.md", rulesWithMarker);
+      }
+      // Second call: agent does nothing (rules already written)
+    });
+    const { person, asked } = createFakePerson({ gates: [APPROVE, APPROVE] });
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    expect(await setupRules(deps, started, await readState(started))).toBe("approved");
+    expect(agentRuns.length).toBe(2);
+    expect(asked).toEqual(["Approve sdd/rules.md?", "Approve sdd/rules.md?"]);
+  });
+
+  it("protects area files during gate: the runner restores the protected file and shows the gate again", async () => {
+    const project = createFakeProject({ withRules: false });
+    let gateCallCount = 0;
+    const { agent, runs: agentRuns } = createFakeAgent(async () => project.write("sdd/rules.md", RULES));
+    const { person } = createFakePerson({ gates: [APPROVE, APPROVE] });
+    const originalGate = person.gate;
+    person.gate = async (question: string, summary: string) => {
+      gateCallCount++;
+      if (gateCallCount === 1) {
+        // During first gate, write to protected area file
+        project.write("sdd/areas/favorites.md", "modified\n");
+      }
+      return await originalGate.call(person, question, summary);
+    };
+
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    const result = await setupRules(deps, started, await readState(started));
+    expect(result).toBe("approved");
+    expect(gateCallCount).toBe(2);
+    expect(agentRuns.length).toBe(1);
+    const areaAtHead = await project.git.fileAt("HEAD", "sdd/areas/favorites.md");
+    expect(areaAtHead + "\n").toBe(AREA);
+    expect(project.read("sdd/areas/favorites.md")).toBe(AREA);
+  });
+
+  it("throws and does not approve when the person switches the branch at the gate", async () => {
+    const project = createFakeProject({ withRules: false });
+    const { agent } = createFakeAgent(async () => project.write("sdd/rules.md", RULES));
+    const { person } = createFakePerson({ gates: [APPROVE] });
+    const ask = person.gate;
+    person.gate = async (question: string, summary: string) => {
+      project.run("switch", "-q", "-c", "other");
+      return ask.call(person, question, summary);
+    };
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    await expect(setupRules(deps, started, await readState(started))).rejects.toThrow('The branch changed to "other". Switch back to sdd/2026-10-08-sort and run /sdd again.');
+  });
+
+  it("warns the person when the approved full tier exits with an error", async () => {
+    const project = createFakeProject({ withRules: false });
+    project.write("tests/broken.txt", "broken-test|src/missing.txt\n");
+    project.run("add", "-A");
+    project.run("commit", "-qm", "a failing test");
+    const { agent } = createFakeAgent(async () => project.write("sdd/rules.md", RULES));
+    const { person, notices } = createFakePerson({ gates: [APPROVE] });
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    expect(await setupRules(deps, started, await readState(started))).toBe("approved");
+    expect(notices).toEqual(["The Full tier exits with an error. Build needs it to pass."]);
+  });
+
+  it("replaces the draft commits with one approval commit", async () => {
+    const project = createFakeProject({ withRules: false });
+    const { agent } = createFakeAgent(async () => project.write("sdd/rules.md", RULES));
+    const { person } = createFakePerson({ gates: [{ kind: "change", feedback: "Name the approvers." }, APPROVE] });
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    expect(await setupRules(deps, started, await readState(started))).toBe("approved");
+    expect(project.run("log", "-1", "--format=%s", "--", "sdd/rules.md")).toBe("sdd(sort): rules approved");
+    expect(project.run("log", "--format=%s")).not.toContain("rules draft");
+    expect(project.run("status", "--porcelain")).toBe("");
+  });
+
+  it("shows the gate again when the person commits during the full tier", async () => {
+    const project = createFakeProject({ withRules: false });
+    const marker = `${project.root}/reports/committed`;
+    const rulesWithCommit = RULES.replace(
+      "Full tier: node fake-tests.mjs",
+      `Full tier: if [ ! -f ${marker} ]; then mkdir -p ${project.root}/reports && touch ${marker} && git commit -q --allow-empty -m person; fi; node fake-tests.mjs`
+    );
+    const { agent } = createFakeAgent(async () => project.write("sdd/rules.md", rulesWithCommit));
+    const { person, asked } = createFakePerson({ gates: [APPROVE, APPROVE] });
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    expect(await setupRules(deps, started, await readState(started))).toBe("approved");
+    expect(asked).toEqual(["Approve sdd/rules.md?", "Approve sdd/rules.md?"]);
+    expect(project.run("log", "-1", "--format=%s", "--", "sdd/rules.md")).toBe("sdd(sort): rules approved");
+  });
+});

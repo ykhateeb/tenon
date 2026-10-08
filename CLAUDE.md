@@ -72,11 +72,15 @@ The window shows model output, so the agent and main treat each value from the w
 
 - Main and agent share build chunks in `out/main/chunks/`. Code that uses `import.meta.dirname` must stay agent-only, or its relative path breaks.
 - pi loads user and third-party extensions at runtime with jiti. Thus the main build does not bundle dependencies, and electron-builder unpacks `@earendil-works` from the asar.
-- The agent build bundles the canvas extension into `out/main/agent.js`. Rebuild before the app e2e test sees an extension change.
+- The agent build bundles the canvas and the sdd extensions into `out/main/agent.js`. Rebuild before the app e2e test sees an extension change.
 
 ### tenon-canvas package
 
 `packages/tenon-canvas/` is a pi package: a design canvas extension and the `tenon-design` skill. Before you change the package, or host code that imports `#canvas/*`, read `packages/tenon-canvas/CLAUDE.md`.
+
+### tenon-sdd package
+
+`packages/tenon-sdd/` is a pi package: the `/sdd` runner for spec-driven changes and one guide for each stage. Tenon loads it in `runtime.ts` next to the canvas and passes `guidesDir`. `Chat.tsx` shows its `sdd-gate` message as Markdown. Before you change the package, read `packages/tenon-sdd/CLAUDE.md`.
 
 ## Code rules
 
@@ -115,11 +119,11 @@ Follow Clean Code, Clean Architecture, and Effective TypeScript. The rules below
 
 ### Imports
 
-- Use `./x` in the same folder. For any other folder, use a `#` alias from the `"imports"` field of `package.json` (`#protocol`, `#preload`, `#core/*`, `#renderer/*`, `#canvas/*`). Do not use `../`.
+- Use `./x` in the same folder. For any other folder, use a `#` alias from the `"imports"` field of `package.json` (`#protocol`, `#preload`, `#core/*`, `#renderer/*`, `#canvas/*`, `#sdd/*`). Do not use `../`.
 - `tsconfig.json` `paths` repeats the wildcard aliases, because `tsc` does not add `.ts`/`.tsx` to them. If you add an alias, change both files.
 - The folders have no `index.ts` barrel files. A barrel would load `src/core/paths.ts` before a test sets `process.env` (see "Data locations"). It would also put agent-only code (`import.meta.dirname`) in the main build (see "Build").
 - No tool enforces the layer boundaries. A reviewer checks each import against the Dependency Rule (see "Principles").
-- Code in `packages/tenon-canvas/` does not use the aliases. Terminal pi loads it without this app.
+- Code in `packages/tenon-canvas/` and `packages/tenon-sdd/` does not use the aliases. Terminal pi loads them without this app.
 
 ### Tests
 
