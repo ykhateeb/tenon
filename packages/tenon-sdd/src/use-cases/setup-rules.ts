@@ -4,7 +4,7 @@ import { parseRules } from "../entities/rules.js";
 import { readState, readText, RULES_PATH, type Change } from "./change.js";
 import { runFullTier } from "./exit-checks.js";
 import type { Deps, StageRun } from "./ports.js";
-import { protectedErrors, runChecked } from "./run-stage.js";
+import { protectedErrors, redraft, runChecked } from "./run-stage.js";
 import { GUIDES } from "./stages.js";
 
 /** The agent drafts sdd/rules.md, the runner validates it, and the person approves it. The rules merge with this change. */
@@ -30,14 +30,9 @@ export async function setupRules(deps: Deps, change: Change): Promise<"approved"
       }
 
       // answer.kind === "approve"
-      const head = await deps.git.head();
-      if (!(await deps.git.isClean()) || head !== reviewedHead) {
-        const errors = await protectedErrors(deps, change, policy, state, reviewedHead);
-        deps.person.notify("Files changed after the summary. Review the gate again.", "warning");
-        for (const error of errors) {
-          deps.person.notify(error, "warning");
-        }
-        reviewedHead = (await deps.git.commitAll(`sdd(${change.slug}): rules draft`)) ?? (await deps.git.head());
+      if (!(await deps.git.isClean()) || (await deps.git.head()) !== reviewedHead || (await deps.git.currentBranch()) !== `sdd/${change.folder}`) {
+        await redraft(deps, change, policy, state, reviewedHead);
+        reviewedHead = await deps.git.head();
         continue; // Show gate again
       }
 

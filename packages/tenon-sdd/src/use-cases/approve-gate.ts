@@ -10,9 +10,9 @@ export const GATE_QUESTIONS: Record<Gate, string> = {
   G3: "Is the final diff, the area specs included, correct and good code to keep?",
 };
 
-/** Record the approval with the reviewed commit, then commit state.json. Returns undefined if the tree changed or HEAD moved since reviewedHead. */
+/** Record the approval with the reviewed commit, then commit state.json. Returns undefined if the tree changed, HEAD moved since reviewedHead, or the branch is not the change branch. */
 export async function recordApproval(deps: Deps, change: Change, gate: Gate, state: State, reviewedHead: string): Promise<State | undefined> {
-  if (!(await deps.git.isClean()) || (await deps.git.head()) !== reviewedHead) {
+  if (!(await deps.git.isClean()) || (await deps.git.head()) !== reviewedHead || (await deps.git.currentBranch()) !== `sdd/${change.folder}`) {
     return undefined;
   }
   const approved = withApproval(state, { gate, commit: reviewedHead, by: await deps.git.userName(), at: isoDate(deps.now()) });

@@ -40,7 +40,7 @@ export async function runChecked(deps: Deps, { runs, protect, apply, check }: Ch
 export async function protectedErrors(deps: Deps, change: Change, policy: Policy, state: State, since: string): Promise<string[]> {
   const branch = await deps.git.currentBranch();
   if (branch !== `sdd/${change.folder}`) {
-    throw new Error(`The agent switched the branch to "${branch}". Switch back to sdd/${change.folder} and run /sdd again.`);
+    throw new Error(`The branch changed to "${branch}". Switch back to sdd/${change.folder} and run /sdd again.`);
   }
 
   const own = [AREAS_DIR, ...(policy.kind === "setup" ? [] : [RULES_PATH]), ...(policy.specLocked ? [pathOf(change, "spec.md")] : []), ...policy.lockedTests];
@@ -63,6 +63,14 @@ export async function protectedErrors(deps: Deps, change: Change, policy: Policy
     errors.push("You changed state.json. The runner restored it. Only the runner changes state.json.");
   }
   return errors;
+}
+
+/** Files changed while the person read a gate: restore the protected files, tell the person, and commit a new draft. */
+export async function redraft(deps: Deps, change: Change, policy: Policy, state: State, reviewedHead: string): Promise<void> {
+  const errors = await protectedErrors(deps, change, policy, state, reviewedHead);
+  deps.person.notify("Files changed after the summary. Review the gate again.", "warning");
+  for (const error of errors) deps.person.notify(error, "warning");
+  await deps.git.commitAll(`sdd(${change.slug}): files changed at the gate`);
 }
 
 async function settle(outcome: StageOutcome, apply: CheckedRun["apply"], protect: CheckedRun["protect"]): Promise<StageEnd | undefined> {

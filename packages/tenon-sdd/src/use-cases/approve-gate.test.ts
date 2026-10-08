@@ -42,6 +42,16 @@ describe("recordApproval", () => {
     const approved = await recordApproval(deps, change, "G1", await readState(change), reviewedHead);
     expect(approved).toBeUndefined();
   });
+
+  it("refuses approval on another branch at the same commit", async () => {
+    const { project, deps, change } = await started();
+    project.write(`${change.dir}/spec.md`, "# Spec: Sort\n");
+    const reviewedHead = (await project.git.commitAll("sdd(sort): spec done"))!;
+    project.run("switch", "-q", "-c", "other");
+    const approved = await recordApproval(deps, change, "G1", await readState(change), reviewedHead);
+    expect(approved).toBeUndefined();
+    expect(project.run("log", "-1", "--format=%s")).toBe("sdd(sort): spec done");
+  });
 });
 
 describe("invalidGates and lockedTests", () => {

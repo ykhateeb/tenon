@@ -83,4 +83,18 @@ describe("setupRules", () => {
     expect(areaAtHead + "\n").toBe(AREA);
     expect(project.read("sdd/areas/favorites.md")).toBe(AREA);
   });
+
+  it("throws and does not approve when the person switches the branch at the gate", async () => {
+    const project = createFakeProject({ withRules: false });
+    const { agent } = createFakeAgent(async () => project.write("sdd/rules.md", RULES));
+    const { person } = createFakePerson({ gates: [APPROVE] });
+    const ask = person.gate;
+    person.gate = async (question: string, summary: string) => {
+      project.run("switch", "-q", "-c", "other");
+      return ask.call(person, question, summary);
+    };
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    await expect(setupRules(deps, started)).rejects.toThrow('The branch changed to "other". Switch back to sdd/2026-10-08-sort and run /sdd again.');
+  });
 });
