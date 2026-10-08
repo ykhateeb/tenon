@@ -1,0 +1,69 @@
+import type { State } from "../entities/state.js";
+import type { Policy } from "../entities/write-policy.js";
+import { AREAS_DIR, pathOf, readText, RULES_PATH, stateText, writeState, type Change } from "./change.js";
+import type { Deps, ReturnRequest, StageOutcome, StageRun } from "./ports.js";
+
+export type StageEnd = { kind: "passed" } | { kind: "stopped" } | { kind: "returned"; request: ReturnRequest };
+export type CheckedRun = {
+  runs: readonly StageRun[];
+  protect: () => Promise<string[]>;
+  apply: (outcome: StageOutcome) => Promise<void>;
+  check: () => Promise<string[]>;
+};
+
+const CHECKS_BEFORE_ASKING = 3;
+const TRY_AGAIN = "Try again";
+
+/**
+ * Run the sessions of a stage, then the protected-path check and the exit check.
+ * A failed check goes to the last session as a follow-up message. After each 3 failed checks, the person decides.
+ */
+export async function runChecked(deps: Deps, { runs, protect, apply, check }: CheckedRun): Promise<StageEnd> {
+  for (const run of runs) {
+    const end = await settle(await deps.agent.run(run), apply);
+    if (end) return end;
+  }
+  for (let failures = 0; ; ) {
+    const errors = [...(await protect()), ...(await check())];
+    if (!errors.length) return { kind: "passed" };
+    failures++;
+    if (failures % CHECKS_BEFORE_ASKING === 0 && !(await shouldTryAgain(deps, runs[0]?.title ?? "sdd", failures))) return { kind: "stopped" };
+    const end = await settle(await deps.agent.followUp(failureMessage(errors)), apply);
+    if (end) return end;
+  }
+}
+
+/**
+ * The bash gap: the tool_call guard cannot see files that bash writes.
+ * Restore each protected file that changed since the last commit, and state.json if it is not the state of the runner.
+ */
+export async function protectedErrors(deps: Deps, change: Change, policy: Policy, state: State): Promise<string[]> {
+  const own = [AREAS_DIR, ...(policy.kind === "setup" ? [] : [RULES_PATH]), ...(policy.specLocked ? [pathOf(change, "spec.md")] : []), ...policy.lockedTests];
+  const otherChanges = ["sdd/changes", `:(exclude)${change.dir}`];
+  const changed = [...(await deps.git.changedSince("HEAD", own)), ...(await deps.git.changedSince("HEAD", otherChanges))];
+  const errors: string[] = [];
+  if (changed.length) {
+    await deps.git.restore("HEAD", changed);
+    errors.push(`You changed ${changed.join(", ")}, which this stage cannot change. The runner restored the files. Use request_return if a change there is necessary.`);
+  }
+  if ((await readText(deps.root, pathOf(change, "state.json"))) !== stateText(state)) {
+    await writeState(change, state);
+    errors.push("You changed state.json. The runner restored it. Only the runner changes state.json.");
+  }
+  return errors;
+}
+
+async function settle(outcome: StageOutcome, apply: CheckedRun["apply"]): Promise<StageEnd | undefined> {
+  if (outcome.aborted) return { kind: "stopped" };
+  if (outcome.returnRequest) return { kind: "returned", request: outcome.returnRequest };
+  await apply(outcome);
+  return undefined;
+}
+
+async function shouldTryAgain(deps: Deps, title: string, failures: number): Promise<boolean> {
+  return (await deps.person.choose(`${title}: the exit check failed ${failures} times.`, [TRY_AGAIN, "Stop"])) === TRY_AGAIN;
+}
+
+function failureMessage(errors: readonly string[]): string {
+  return ["The exit check of this stage failed. Correct these items, then stop:", ...errors.map((error) => `- ${error}`)].join("\n");
+}
