@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { upsertSection } from "../entities/markdown.js";
 import { parseRules, type Rules } from "../entities/rules.js";
-import { approvalOf, gateAfter, nextStage, parseState, stageOf, type State } from "../entities/state.js";
+import { approvalOf, gateAfter, nextStage, parseState, returnTarget, stageOf, type State } from "../entities/state.js";
 import type { Policy, StageKind } from "../entities/write-policy.js";
 import { GATE_QUESTIONS, gateSummary, invalidGates, lockedTests, recordApproval } from "./approve-gate.js";
 import { changeOf, pathOf, readRules, readSpec, readState, readText, RULES_PATH, writeState, type Change } from "./change.js";
@@ -134,7 +134,7 @@ async function workStage(deps: Deps, change: Change, state: State, resume: reado
   const rules = await readRules(deps.root);
   const check: Check = (latest) => exitErrors(deps, change, latest, rules);
   let current = state;
-  const hasPassed = resume?.length === 0 && (await check(state, undefined)).length === 0;
+  const hasPassed = resume?.length === 0 && state.returned?.stage !== state.stage && (await check(state, undefined)).length === 0;
   if (!hasPassed) {
     const runs = resume ? [await stageRun(deps, change, state, rules, state.stage, ["Continue the stage. Read the files to see what is done.", ...resume])] : await stageRuns(deps, change, state, rules);
     const checked = await checkedStage(deps, change, state, runs, check);
@@ -207,7 +207,8 @@ async function checkedStage(deps: Deps, change: Change, state: State, runs: read
 
 async function endOf(deps: Deps, change: Change, end: Exclude<Checked, { kind: "passed" }>): Promise<Step> {
   if (end.kind === "stopped") return STOPPED;
-  return { kind: "next", state: await returnChange(deps, change, await readState(change), end.request) };
+  const state = await readState(change);
+  return { kind: "next", state: await returnChange(deps, change, state, { ...end.request, stage: returnTarget(state, end.request.stage) }) };
 }
 
 async function gateOrAdvance(deps: Deps, change: Change, state: State, rules: Rules): Promise<Step> {

@@ -488,6 +488,49 @@ describe("createRunner", () => {
     expect(stateOf(project).stage).toBe("done");
   });
 
+  it("keeps the return reason when the person stops the returned Build session, and gives it on resume", async () => {
+    const project = createFakeProject();
+    const work = sortScript(project);
+    let hasFound = false;
+    let hasStopped = false;
+    const script: AgentScript = async (run, count) => {
+      if (hasFound && !hasStopped && run.policy.kind === "build") {
+        hasStopped = true;
+        return { aborted: true };
+      }
+      const result = await work(run, count);
+      if (run.policy.kind !== "review" || hasFound) return result;
+      hasFound = true;
+      return { ...result, findings: [{ file: "src/sort.txt", problem: "the sort is not stable", action: "keep the order of equal dates", returnTo: "build" as const }] };
+    };
+    const first = runner(project, script, { inputs: ["sort"], gates: [APPROVE, APPROVE] });
+    await first.runner.start("Sort favorites by date");
+    expect(stateOf(project).stage).toBe("build");
+    const second = runner(project, script, { gates: [APPROVE] });
+    await second.runner.resume();
+    expect(second.runs[0]?.title).toBe("sdd: build (sort)");
+    expect(second.runs[0]?.message).toContain("Returned to this stage: Review findings: src/sort.txt: the sort is not stable");
+    expect(stateOf(project).stage).toBe("done");
+  });
+
+  it("restarts the current stage when an agent asks to return to a later stage", async () => {
+    const project = createFakeProject();
+    const work = sortScript(project);
+    let hasReturned = false;
+    const script: AgentScript = async (run, count) => {
+      if (run.policy.kind === "tests" && !hasReturned) {
+        hasReturned = true;
+        return { returnRequest: { stage: "build", reason: "x" } };
+      }
+      return work(run, count);
+    };
+    const { runner: sdd, runs, asked } = runner(project, script, { inputs: ["sort"], gates: [APPROVE, STOP] });
+    await sdd.start("Sort favorites by date");
+    expect(runs.map((run) => run.title)).toEqual(["sdd: spec (sort)", "sdd: plan (sort)", "sdd: tests (sort)", "sdd: tests (sort)"]);
+    expect(runs[3].message).toContain("Returned to this stage: x");
+    expect(gatesOf(asked)).toEqual(["G1", "G2"]);
+  });
+
   it("starts a small change again at Spec when Build makes it full, and asks G1", async () => {
     const project = createFakeProject();
     const work = fixScript(project);

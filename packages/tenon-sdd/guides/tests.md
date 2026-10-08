@@ -4,6 +4,8 @@ You write the tests before the code exists. Do not write production code in this
 
 If the message gives a return reason, fix that problem first. Keep the work that is still correct.
 
+Do not run git commit. The runner commits your work.
+
 ## Steps
 
 1. Read `spec.md`, `plan.md` (the contracts, the test data, and the `(test)` tasks), and `sdd/rules.md` (Test files, Fast tier).

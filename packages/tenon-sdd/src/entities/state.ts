@@ -122,9 +122,15 @@ export function returnedTo(state: State, { target, reason, by, at, size }: Retur
   };
 }
 
+/** A return goes to the current stage or an earlier one. A later stage would skip a gate, so the current stage starts again. */
+export function returnTarget(state: State, target: WorkStage): WorkStage {
+  return state.stage !== "done" && STAGES.indexOf(target) > STAGES.indexOf(state.stage) ? state.stage : target;
+}
+
 export function classificationError(state: State, { type, size }: Classification): string | undefined {
   if (type === "feature" && size === "small") return "A feature is always full size.";
-  if (size === "small" && state.size === "full" && approvalOf(state, "G1")) return "A full change cannot become small after G1.";
+  // A reopened G1 still saw the full spec, so any G1 entry counts.
+  if (size === "small" && state.size === "full" && state.gates.some((entry) => entry.gate === "G1")) return "A full change cannot become small after G1.";
   return undefined;
 }
 

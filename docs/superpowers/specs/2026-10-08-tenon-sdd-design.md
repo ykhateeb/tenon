@@ -282,7 +282,7 @@ The approved tests are the files that match the `Test files` globs and that the 
 
 ### 7.3 Writes through bash
 
-The `tool_call` guard cannot see the files that a bash command writes. After each stage session, code runs `git diff` on the protected paths against the last commit. If a protected file changed, the check fails and names the file. Code restores the file from the commit, and the follow-up message tells the agent to use `request_return`. The gate status check (G1 covers `spec.md`, G2 covers `spec.md` and the approved tests, G3 covers the full diff except `state.json`) also finds a later change.
+The `tool_call` guard cannot see the files that a bash command writes. After each stage session, code runs `git diff` on the protected paths against the last commit. If a protected file changed, the check fails and names the file. Code restores the file from the commit, and the follow-up message names the file and says that the runner restored it. The gate status check (G1 covers `spec.md`, G2 covers `spec.md` and the approved tests, G3 covers the full diff except `state.json`) also finds a later change.
 
 ### 7.4 Commits
 

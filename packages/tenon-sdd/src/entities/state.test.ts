@@ -140,4 +140,9 @@ describe("classificationError", () => {
     expect(classificationError(state({ type: "change", gates: [approved("G1")] }), { type: "change", size: "small" })).toMatch(/after G1/);
     expect(classificationError(state(), { type: "bug", size: "small" })).toBeUndefined();
   });
+
+  it("rejects a full change that becomes small after G1 reopened", () => {
+    const reopened = { gate: "G1" as const, result: "reopened" as const, reason: "x", by: "runner", at: "2026-10-09" };
+    expect(classificationError(state({ type: "change", gates: [approved("G1"), reopened] }), { type: "change", size: "small" })).toBe("A full change cannot become small after G1.");
+  });
 });
