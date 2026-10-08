@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { GateAnswer, Person } from "../use-cases/ports.js";
 import type { PiAgent } from "./pi-agent.js";
 
+// Tenon's src/renderer/src/chat/Chat.tsx repeats this literal: the package cannot import #protocol, and the renderer cannot import the package.
 export const GATE_MESSAGE = "sdd-gate";
 const APPROVE = "Approve";
 const CHANGE = "Change";

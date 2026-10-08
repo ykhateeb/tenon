@@ -21,6 +21,7 @@ import type { Dialogs } from "./extension-ui";
 export function createRuntimes({ send, modelRuntime, ask }: { send: Send; modelRuntime: ModelRuntime; ask: Dialogs["ask"] }) {
   // "Open without project files" answers, for this app run only.
   const trustOnce = new Map<string, boolean>();
+  const packagesDir = join(import.meta.dirname, "../../packages");
 
   // pi also uses this for the sessions a runtime replaces itself with (fork, new, switch).
   const factory: CreateAgentSessionRuntimeFactory = async ({ cwd, sessionManager, sessionStartEvent }) => {
@@ -35,9 +36,9 @@ export function createRuntimes({ send, modelRuntime, ask }: { send: Send; modelR
       resourceLoaderOptions: {
         extensionFactories: [
           { name: "tenon-canvas", factory: tenonCanvas },
-          { name: "tenon-sdd", factory: (pi) => tenonSdd(pi, { guidesDir: join(import.meta.dirname, "../../packages/tenon-sdd/guides") }) },
+          { name: "tenon-sdd", factory: (pi) => tenonSdd(pi, { guidesDir: join(packagesDir, "tenon-sdd/guides") }) },
         ],
-        additionalSkillPaths: [join(import.meta.dirname, "../../packages/tenon-canvas/skills")],
+        additionalSkillPaths: [join(packagesDir, "tenon-canvas/skills")],
       },
       resourceLoaderReloadOptions: { resolveProjectTrust: async () => trusted },
     });

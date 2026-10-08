@@ -25,7 +25,10 @@ export function createFakeAgent(script: AgentScript, onFollowUp: (message: strin
 }
 
 /** A Person with scripted answers. A missing gate answer is Stop. */
-export function createFakePerson({ gates = [], choices = [], inputs = [] }: { gates?: GateAnswer[]; choices?: (string | undefined)[]; inputs?: (string | undefined)[] }) {
+export function createFakePerson(answers: { gates?: GateAnswer[]; choices?: (string | undefined)[]; inputs?: (string | undefined)[] }) {
+  const gates = [...(answers.gates ?? [])];
+  const choices = [...(answers.choices ?? [])];
+  const inputs = [...(answers.inputs ?? [])];
   const asked: string[] = [];
   const notices: string[] = [];
   const person: Person = {

@@ -5,6 +5,8 @@ export type Policy = { kind: StageKind; changeDir: string; specLocked: boolean; 
 
 type Allowed = { files: string[]; tests?: true; everything?: true };
 
+const OUTSIDE = "Write only inside the project.";
+
 const ALLOWED: Record<StageKind, (dir: string) => Allowed> = {
   setup: () => ({ files: ["sdd/rules.md"] }),
   spec: (dir) => ({ files: [`${dir}/spec.md`] }),
@@ -16,27 +18,19 @@ const ALLOWED: Record<StageKind, (dir: string) => Allowed> = {
 
 /**
  * Why a stage cannot write a path, or undefined if it can.
+ * The path is relative with "/" separators. Empty and "." parts drop out, and a ".." part is refused.
  * The file systems of macOS and Windows ignore case, so the check does too.
  */
 export function blockReason(path: string, policy: Policy): string | undefined {
-  // Block absolute paths and backslashes
-  if (path.startsWith("/") || /^[a-zA-Z]:/.test(path) || path.includes("\\")) {
-    return "Write only inside the project.";
-  }
-
-  // Normalize path: split on "/", drop empty and "." segments, reject if any ".."
-  const segments = path.split("/").filter((seg) => seg !== "" && seg !== ".");
-  if (segments.some((seg) => seg === "..")) {
-    return "Write only inside the project.";
-  }
+  if (path.startsWith("/") || /^[a-zA-Z]:/.test(path) || path.includes("\\")) return OUTSIDE;
+  const segments = path.split("/").filter((segment) => segment !== "" && segment !== ".");
+  if (segments.includes("..")) return OUTSIDE;
   const target = segments.join("/").toLowerCase();
-
   const dir = policy.changeDir.toLowerCase();
   return protectedReason(target, dir, policy) ?? stageReason(target, dir, policy);
 }
 
 function protectedReason(target: string, dir: string, policy: Policy): string | undefined {
-  if (target === ".." || target.startsWith("../")) return "Write only inside the project.";
   if (target === `${dir}/state.json`) return "state.json changes only through the runner.";
   if (target === "sdd/areas" || target.startsWith("sdd/areas/")) return "Only Ship changes the area specs. Write the change in the delta of spec.md.";
   if (target === "sdd/rules.md" && policy.kind !== "setup") return "rules.md changes only by review, not inside a change.";

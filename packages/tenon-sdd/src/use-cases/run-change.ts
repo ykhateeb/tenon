@@ -77,16 +77,16 @@ async function startRefusal(deps: Deps): Promise<string | undefined> {
 async function drive(deps: Deps, change: Change, resumed: boolean): Promise<void> {
   let state = resumed ? await committedState(deps, change) : await readState(change);
   if ((await isSetupPending(deps, change)) && (await setupRules(deps, change, state)) === "stopped") return;
-  let resume = resumed ? await restoreOnResume(deps, change, state) : undefined;
-  for (const line of resume ?? []) deps.person.notify(line, "warning");
+  let restored = resumed ? await restoreOnResume(deps, change, state) : undefined;
+  for (const line of restored ?? []) deps.person.notify(line, "warning");
   if (resumed) {
     if (!(await mergedBase(deps, state))) return;
     state = await reopenInvalidGates(deps, change, state);
   }
   while (state.stage !== "done") {
-    if (!resume && !(await mergedBase(deps, state))) return;
-    const step = state.stage === "ship" ? await ship(deps, change, state, resume !== undefined) : await workStage(deps, change, state, resume);
-    resume = undefined;
+    if (!restored && !(await mergedBase(deps, state))) return;
+    const step = state.stage === "ship" ? await ship(deps, change, state, restored !== undefined) : await workStage(deps, change, state, restored);
+    restored = undefined;
     if (step.kind === "stopped") return;
     state = step.state;
   }
@@ -268,13 +268,13 @@ async function ship(deps: Deps, change: Change, state: State, resumed: boolean):
 async function isReviewDone(deps: Deps, change: Change, rules: Rules): Promise<boolean> {
   const subject = await deps.git.subjectOf("HEAD");
   const isReviewCommit = subject === `sdd(${change.slug}): review` || subject === `sdd(${change.slug}): files changed at the gate`;
-  return isReviewCommit && (await shipErrors(deps, rules, change, true)).length === 0;
+  return isReviewCommit && (await shipErrors(deps, change, rules, true)).length === 0;
 }
 
 async function reviewRound(deps: Deps, change: Change, state: State, rules: Rules, ids: ReadonlyMap<string, string>, lines: readonly string[]): Promise<Step | Reviewed> {
   const diffPath = await writeReviewDiff(deps, change, state);
   const run = await stageRun(deps, change, state, rules, "review", [`Diff of the change: ${diffPath}`, ...lines]);
-  const checked = await checkedStage(deps, change, state, [run], (_latest, findings) => shipErrors(deps, rules, change, findings !== undefined)).finally(() =>
+  const checked = await checkedStage(deps, change, state, [run], (_latest, findings) => shipErrors(deps, change, rules, findings !== undefined)).finally(() =>
     rm(dirname(diffPath), { recursive: true, force: true }),
   );
   if (checked.kind !== "passed") return endOf(deps, change, checked);

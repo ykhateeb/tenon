@@ -4,7 +4,7 @@ export function upsertSection(markdown: string, heading: string, body: string): 
   const section = [`## ${heading}`, ...body.split("\n")];
   const start = lines.findIndex((line) => line.trim() === `## ${heading}`);
   if (start < 0) return [...lines, "", ...section, ""].join("\n");
-  const next = lines.findIndex((line, index) => index > start && line.startsWith("## "));
+  const next = lines.findIndex((line, index) => index > start && line.trim().startsWith("## "));
   const rest = next < 0 ? [] : ["", ...lines.slice(next)];
   return [...lines.slice(0, start), ...section, ...rest, ""].join("\n");
 }

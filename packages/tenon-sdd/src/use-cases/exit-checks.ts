@@ -5,13 +5,13 @@ import { runCommand } from "../adapters/shell.js";
 import { hasRequirement, staleErrors } from "../entities/area-spec.js";
 import { sizeErrors, type Spec } from "../entities/delta.js";
 import { hasSection } from "../entities/markdown.js";
-import { consistencyErrors } from "../entities/plan.js";
+import { consistencyErrors, type Task } from "../entities/plan.js";
 import { errorsOf } from "../entities/result.js";
-import { parseRules, type Rules } from "../entities/rules.js";
+import type { Rules } from "../entities/rules.js";
 import type { State } from "../entities/state.js";
 import { buildStageErrors, testsStageErrors, withStatuses, withVerdicts, type TestCase, type TestMode } from "../entities/traceability.js";
 import { areaFrom, areasOf, areaWithPrefix, readAreas } from "./areas.js";
-import { AREAS_DIR, pathOf, readPlan, readSpec, readText, readTrace, RULES_PATH, writeTrace, type Change } from "./change.js";
+import { AREAS_DIR, pathOf, readPlan, readSpec, readText, readTrace, writeTrace, type Change } from "./change.js";
 import type { Deps } from "./ports.js";
 
 export type FullTier = { code: number | null; output: string; cases: TestCase[]; errors: string[] };
@@ -32,14 +32,7 @@ export async function runFullTier(deps: Deps, rules: Rules): Promise<FullTier> {
   return { code: result.code, output, cases, errors: missing.map((glob) => `The full tier wrote no JUnit report that matches ${glob}. Output:\n${output}`) };
 }
 
-export async function setupErrors(deps: Deps): Promise<string[]> {
-  const text = await readText(deps.root, RULES_PATH);
-  if (text === undefined) return [`Write ${RULES_PATH}.`];
-  const rules = parseRules(text);
-  return rules.ok ? (await runFullTier(deps, rules.value)).errors : rules.errors;
-}
-
-/** The exit check of the current stage. Ship has its own check (shipErrors). */
+/** The exit check of the current stage. Tests and Build also write the statuses and verdicts into traceability.md. Ship has its own check (shipErrors). */
 export async function exitErrors(deps: Deps, change: Change, state: State, rules: Rules): Promise<string[]> {
   if (state.stage === "spec") return specErrors(deps, change, state);
   if (state.stage === "plan") return planErrors(change);
@@ -48,7 +41,7 @@ export async function exitErrors(deps: Deps, change: Change, state: State, rules
   return [];
 }
 
-export async function shipErrors(deps: Deps, rules: Rules, change: Change, isReviewed: boolean): Promise<string[]> {
+export async function shipErrors(deps: Deps, change: Change, rules: Rules, isReviewed: boolean): Promise<string[]> {
   const outcome = (await readText(deps.root, pathOf(change, "outcome.md"))) ?? "";
   const tier = await runFullTier(deps, rules);
   return [
@@ -101,7 +94,7 @@ async function planErrors(change: Change): Promise<string[]> {
 async function testsErrors(deps: Deps, change: Change, state: State, rules: Rules): Promise<string[]> {
   const [spec, trace] = await Promise.all([readSpec(change), readTrace(change)]);
   if (!spec.ok || !trace.ok) return [...errorsOf(spec), ...errorsOf(trace)];
-  const unticked = state.size === "full" ? await untickedErrors(change, true) : [];
+  const unticked = state.size === "full" ? await untickedErrors(change, (task) => task.isTest) : [];
   const tier = await runFullTier(deps, rules);
   if (tier.errors.length) return [...unticked, ...tier.errors];
   const mode: TestMode = state.type === "refactor" || state.type === "chore" ? "pass" : state.built ? "after-build" : "fail-first";
@@ -111,7 +104,7 @@ async function testsErrors(deps: Deps, change: Change, state: State, rules: Rule
 }
 
 async function buildErrors(deps: Deps, change: Change, state: State, rules: Rules): Promise<string[]> {
-  const unticked = state.size === "full" ? await untickedErrors(change, false) : [];
+  const unticked = state.size === "full" ? await untickedErrors(change, () => true) : [];
   const tier = await runFullTier(deps, rules);
   if (tier.errors.length) return [...unticked, ...tier.errors];
   if (state.type === "docs") return [...unticked, ...failingCases(tier)];
@@ -124,10 +117,10 @@ async function buildErrors(deps: Deps, change: Change, state: State, rules: Rule
   return errors.length ? errors : mutationErrors(deps, rules);
 }
 
-async function untickedErrors(change: Change, onlyTests: boolean): Promise<string[]> {
+async function untickedErrors(change: Change, isChecked: (task: Task) => boolean): Promise<string[]> {
   const plan = await readPlan(change);
   if (!plan.ok) return plan.errors;
-  return plan.value.filter((task) => !task.done && (!onlyTests || task.isTest)).map((task) => `Tick the task ${task.id} in plan.md when it is done.`);
+  return plan.value.filter((task) => !task.done && isChecked(task)).map((task) => `Tick the task ${task.id} in plan.md when it is done.`);
 }
 
 async function mutationErrors(deps: Deps, rules: Rules): Promise<string[]> {

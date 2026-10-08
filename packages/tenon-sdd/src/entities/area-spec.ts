@@ -30,6 +30,16 @@ const LIST_LINE = /^- (.+)$/;
 const FINAL_ID = /^[A-Z]{2,8}-[RQ]-\d{3,}$/;
 const QUALITY_LOCAL_ID = /^(?:NEW|BASE)-Q\d+$/;
 
+type SectionReader = { pattern: RegExp; kind: string; add: (area: AreaSpec, match: RegExpExecArray) => void };
+/** The sections of an area spec, and how each reads its lines. */
+const SECTIONS = new Map<string, SectionReader>([
+  ["Coverage", { pattern: LIST_LINE, kind: "coverage line", add: (area, [, text]) => area.coverage.push(text) }],
+  ["Current behavior", { pattern: REQUIREMENT_LINE, kind: "requirement line", add: (area, match) => area.behavior.push(toRequirement(match)) }],
+  ["Quality requirements", { pattern: REQUIREMENT_LINE, kind: "requirement line", add: (area, match) => area.quality.push(toRequirement(match)) }],
+  ["Tests", { pattern: TEST_LINE, kind: "test link", add: (area, [, id, test]) => area.tests.push({ id, test }) }],
+  ["History", { pattern: LIST_LINE, kind: "history line", add: (area, [, text]) => area.history.push(text) }],
+]);
+
 export function newArea(name: string, prefix: string): AreaSpec {
   const title = name.charAt(0).toUpperCase() + name.slice(1).replaceAll("-", " ");
   return { title, prefix, nextR: 1, nextQ: 1, coverage: [], behavior: [], quality: [], tests: [], history: [] };
@@ -49,13 +59,12 @@ export function parseAreaSpec(markdown: string): ParseResult<AreaSpec> {
   let section = "";
   const errors: string[] = [];
   const lines = markdown.split(/\r?\n/).map((text) => text.trim());
-  const validSections = new Set(["Coverage", "Current behavior", "Quality requirements", "Tests", "History"]);
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.startsWith("## ")) {
       const newSection = line.slice(3);
-      if (!validSections.has(newSection)) {
+      if (!SECTIONS.has(newSection)) {
         errors.push(`area spec line ${i + 1}: an area spec has only the sections Coverage, Current behavior, Quality requirements, Tests, and History.`);
       }
       section = newSection;
@@ -158,41 +167,11 @@ function readAreaLine(area: AreaSpec, section: string, line: string, lineNum: nu
     area.nextR = Number(header[2]);
     area.nextQ = Number(header[3]);
   }
-  const requirement = REQUIREMENT_LINE.exec(line);
-  if (section === "Current behavior") {
-    if (requirement) {
-      area.behavior.push(toRequirement(requirement));
-    } else if (line) {
-      errors.push(`area spec line ${lineNum}: this is not a requirement line: "${line}".`);
-    }
-  } else if (section === "Quality requirements") {
-    if (requirement) {
-      area.quality.push(toRequirement(requirement));
-    } else if (line) {
-      errors.push(`area spec line ${lineNum}: this is not a requirement line: "${line}".`);
-    }
-  } else if (section === "Tests") {
-    const test = TEST_LINE.exec(line);
-    if (test) {
-      area.tests.push({ id: test[1], test: test[2] });
-    } else if (line) {
-      errors.push(`area spec line ${lineNum}: this is not a test link: "${line}".`);
-    }
-  } else if (section === "History") {
-    const item = LIST_LINE.exec(line);
-    if (item) area.history.push(item[1]);
-    else if (line) {
-      errors.push(`area spec line ${lineNum}: this is not a history line: "${line}".`);
-    }
-  } else if (section === "Coverage") {
-    const item = LIST_LINE.exec(line);
-    if (item) area.coverage.push(item[1]);
-    else if (line) {
-      errors.push(`area spec line ${lineNum}: this is not a coverage line: "${line}".`);
-    }
-  } else if (section === "" && line && !title && !header) {
-    errors.push(`area spec line ${lineNum}: this text is before the first section: "${line}".`);
-  }
+  const reader = SECTIONS.get(section);
+  const match = reader?.pattern.exec(line);
+  if (reader && match) reader.add(area, match);
+  else if (reader && line) errors.push(`area spec line ${lineNum}: this is not a ${reader.kind}: "${line}".`);
+  else if (section === "" && line && !title && !header) errors.push(`area spec line ${lineNum}: this text is before the first section: "${line}".`);
 }
 
 function toRequirement([, id, text, since, was]: RegExpExecArray): Requirement {

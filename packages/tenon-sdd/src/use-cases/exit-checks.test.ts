@@ -2,10 +2,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { State } from "../entities/state.js";
-import { createFakeProject, RULES } from "../testing/fake-project.js";
+import { createFakeProject } from "../testing/fake-project.js";
 import { createFakeAgent, createFakePerson, testDeps } from "../testing/fakes.js";
 import { changeOf, readRules } from "./change.js";
-import { exitErrors, runFullTier, setupErrors } from "./exit-checks.js";
+import { exitErrors, runFullTier } from "./exit-checks.js";
 
 const DIR = "sdd/changes/2026-10-08-sort";
 const SPEC = `# Spec: Sort
@@ -100,15 +100,5 @@ describe("runFullTier", () => {
     const tier = await runFullTier(deps, await readRules(project.root));
     expect(tier.cases).toEqual([]);
     expect(tier.errors[0]).toMatch(/wrote no JUnit report that matches reports\/\*\.xml/);
-  });
-});
-
-describe("setupErrors", () => {
-  it("needs rules.md, and a full tier that writes the reports", async () => {
-    const empty = createFakeProject({ withRules: false });
-    const emptyDeps = testDeps(empty, createFakeAgent(async () => {}).agent, createFakePerson({}).person);
-    expect(await setupErrors(emptyDeps)).toEqual(["Write sdd/rules.md."]);
-    empty.write("sdd/rules.md", RULES);
-    expect(await setupErrors(emptyDeps)).toEqual([]);
   });
 });

@@ -52,27 +52,10 @@ function toTask([, mark, id, rest]: RegExpExecArray, phase: string): Task {
   };
 }
 
+/** The last "in <file>" token that looks like a path. */
 function extractFile(text: string): string | undefined {
-  const matches = [...text.matchAll(FILE)];
-  let lastPath: string | undefined;
-  for (const match of matches) {
-    const token = match[1];
-    // Iteratively remove backticks and trailing punctuation until stable
-    let cleaned = token;
-    let prev: string;
-    do {
-      prev = cleaned;
-      // Remove backticks from start and end
-      cleaned = cleaned.replace(/^`+|`+$/g, "");
-      // Remove trailing punctuation
-      cleaned = cleaned.replace(/[.,;:)]+$/, "");
-    } while (cleaned !== prev);
-    // Only accept if not empty and contains "/" or "."
-    if (cleaned && (cleaned.includes("/") || cleaned.includes("."))) {
-      lastPath = cleaned;
-    }
-  }
-  return lastPath;
+  const tokens = [...text.matchAll(FILE)].map((match) => match[1].replace(/^`+/, "").replace(/[`.,;:)]+$/, ""));
+  return tokens.filter((token) => token.includes("/") || token.includes(".")).at(-1);
 }
 
 function parallelClashes(tasks: readonly Task[]): string[] {

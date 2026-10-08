@@ -45,7 +45,7 @@ export async function setupRules(deps: Deps, change: Change, state: State): Prom
       const rulesText = await deps.git.fileAt(reviewedHead, RULES_PATH);
       const rulesParsed = parseRules(rulesText ?? "");
       if (!rulesParsed.ok) {
-        feedback = [`The full tier check failed: ${rulesParsed.errors.join(", ")}`];
+        feedback = [`${RULES_PATH} does not parse: ${rulesParsed.errors.join(" ")}`];
         break; // Go back to agent session
       }
 

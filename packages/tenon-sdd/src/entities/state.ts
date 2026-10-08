@@ -70,11 +70,7 @@ export function parseState(json: string): ParseResult<State> {
 
 /** The gate at the end of a stage. The small size has only G3. */
 export function gateAfter(stage: Stage, size: Size | undefined): Gate | undefined {
-  if (stage === "ship") return "G3";
-  if (size === "small") return undefined;
-  if (stage === "spec") return "G1";
-  if (stage === "tests") return "G2";
-  return undefined;
+  return GATES.find((gate) => GATE_STAGE[gate] === stage && (gate === "G3" || size !== "small"));
 }
 
 export function stageOf(gate: Gate): WorkStage {
@@ -113,9 +109,8 @@ export function withApproval(state: State, approval: Omit<Approval, "result">): 
 export function returnedTo(state: State, { target, reason, by, at, size }: Return): State {
   const becomesFull = state.size === "small" && (size === "full" || target === "plan");
   const stage: WorkStage = becomesFull ? "spec" : target;
-  const reopened: Reopening[] = GATES.filter((gate) => STAGES.indexOf(GATE_STAGE[gate]) >= STAGES.indexOf(stage) && approvalOf(state, gate)).map(
-    (gate) => ({ gate, result: "reopened", reason, by, at }),
-  );
+  const isReopened = (gate: Gate) => STAGES.indexOf(GATE_STAGE[gate]) >= STAGES.indexOf(stage) && approvalOf(state, gate) !== undefined;
+  const reopened = GATES.filter(isReopened).map((gate): Reopening => ({ gate, result: "reopened", reason, by, at }));
   const isSpecChange = stage === "spec" && approvalOf(state, "G1") !== undefined;
   return {
     ...state,

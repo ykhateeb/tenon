@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
-import { isAbsolute, relative, resolve } from "node:path";
 import { rm } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -53,10 +52,10 @@ export function createGit(root: string) {
     /** Merge the base into the current branch. A conflict stays in the tree for the person to resolve. */
     mergeBase: async (base: string): Promise<MergeResult> => {
       try {
-        await execFileAsync("git", ["-c", "core.quotePath=false", "merge", "-q", "--no-edit", base], { cwd: root, maxBuffer: MAX_BUFFER });
+        await git("merge", "-q", "--no-edit", base);
         return { ok: true };
       } catch (error) {
-        return { ok: false, output: outputOf(error) };
+        return { ok: false, output: outputOf(error instanceof Error ? error.cause : error) };
       }
     },
     forkPoint: (base: string, ref = "HEAD") => git("merge-base", ref, base),

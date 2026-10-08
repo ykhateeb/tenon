@@ -27,9 +27,9 @@ describe("parseState", () => {
   });
 
   it("rejects a missing specVersion", () => {
-    const s = { ...state() };
-    delete (s as any).specVersion;
-    expect(parseState(JSON.stringify(s)).ok).toBe(false);
+    const partial: Partial<State> = state();
+    delete partial.specVersion;
+    expect(parseState(JSON.stringify(partial)).ok).toBe(false);
   });
 
   it("rejects a null gate entry", () => {

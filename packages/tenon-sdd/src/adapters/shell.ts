@@ -1,5 +1,4 @@
-import { spawn, type ChildProcessByStdio } from "node:child_process";
-import { type Readable } from "node:stream";
+import { spawn, type ChildProcess } from "node:child_process";
 
 export type CommandResult = { code: number | null; output: string; timedOut: boolean };
 
@@ -34,13 +33,14 @@ export function runCommand(command: string, { cwd, timeoutMs }: { cwd: string; t
   });
 }
 
-/** Stop the process and its children. On Windows, falls back to killing only the shell. */
-function stopGroup(child: ChildProcessByStdio<null, Readable, Readable>): void {
+// ponytail: Windows has no process groups, so there only the shell is killed and its children run on. Use taskkill /T if that matters.
+/** Stop the process and its children. */
+function stopGroup(child: ChildProcess): void {
   if (child.pid === undefined) return;
   try {
     process.kill(-child.pid, "SIGKILL");
   } catch {
-    // Fall back on Windows or if the group already ended.
+    // Windows, or the group already ended.
     try {
       child.kill("SIGKILL");
     } catch {
