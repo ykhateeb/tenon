@@ -25,7 +25,7 @@ describe("setupRules", () => {
     const markerPath = `${project.root}/reports/marker-setup-tier`;
     const rulesWithMarker = RULES.replace(
       "Full tier: node fake-tests.mjs",
-      `Full tier: touch ${markerPath} && node fake-tests.mjs`
+      `Full tier: mkdir -p ${project.root}/reports && touch ${markerPath} && node fake-tests.mjs`
     );
     const { agent } = createFakeAgent(async () => project.write("sdd/rules.md", rulesWithMarker));
     const { person } = createFakePerson({ gates: [{ kind: "stop" }] });
@@ -58,7 +58,7 @@ describe("setupRules", () => {
     expect(asked).toEqual(["Approve sdd/rules.md?", "Approve sdd/rules.md?"]);
   });
 
-  it("protects area files during gate and rejects approval if they changed", async () => {
+  it("protects area files during gate: the runner restores the protected file and shows the gate again", async () => {
     const project = createFakeProject({ withRules: false });
     let gateCallCount = 0;
     const { agent, runs: agentRuns } = createFakeAgent(async () => project.write("sdd/rules.md", RULES));
