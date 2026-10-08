@@ -32,4 +32,11 @@ describe("startChange", () => {
     project.run("commit", "-q", "-m", "an old change");
     expect((await startChange(depsOf(project), { request: "Sort again", slug: "sort" })).slug).toBe("sort-2");
   });
+
+  it("rejects an invalid slug", async () => {
+    const project = createFakeProject();
+    const deps = depsOf(project);
+    await expect(startChange(deps, { request: "Sort", slug: "" })).rejects.toThrow("Invalid slug");
+    expect(await project.git.branchExists("sdd/*")).toBe(false);
+  });
 });

@@ -10,12 +10,14 @@ export const GATE_QUESTIONS: Record<Gate, string> = {
   G3: "Is the final diff, the area specs included, correct and good code to keep?",
 };
 
-/** Commit all work, record the approval with that commit, then commit state.json. */
-export async function recordApproval(deps: Deps, change: Change, gate: Gate, state: State): Promise<State> {
-  const commit = (await deps.git.commitAll(`sdd(${change.slug}): ${gate} approved`)) ?? (await deps.git.head());
-  const approved = withApproval(state, { gate, commit, by: await deps.git.userName(), at: isoDate(deps.now()) });
+/** Record the approval with the reviewed commit, then commit state.json. Returns undefined if the tree changed or HEAD moved since reviewedHead. */
+export async function recordApproval(deps: Deps, change: Change, gate: Gate, state: State, reviewedHead: string): Promise<State | undefined> {
+  if (!(await deps.git.isClean()) || (await deps.git.head()) !== reviewedHead) {
+    return undefined;
+  }
+  const approved = withApproval(state, { gate, commit: reviewedHead, by: await deps.git.userName(), at: isoDate(deps.now()) });
   await writeState(change, approved);
-  await deps.git.commitAll(`sdd(${change.slug}): record ${gate}`);
+  await deps.git.commitAll(`sdd(${change.slug}): ${gate} approved`);
   return approved;
 }
 
@@ -51,12 +53,20 @@ export async function gateSummary(deps: Deps, change: Change, gate: Gate, state:
   return parts.join("\n\n");
 }
 
-/** G1 covers spec.md. G2 covers spec.md and the approved tests. G3 covers each file that the branch changed, except state.json. */
+/** G1 covers spec.md. G2 covers spec.md and test files changed from base to approval and from base to HEAD. G3 covers files changed from base to approval and from base to HEAD, minus state.json. */
 async function coveredPaths(deps: Deps, change: Change, state: State, rules: Rules, gate: Gate, commit: string): Promise<string[]> {
   if (gate === "G1") return [pathOf(change, "spec.md")];
-  if (gate === "G2") return [pathOf(change, "spec.md"), ...(await testFilesChanged(deps, state, rules, commit))];
-  const from = await deps.git.forkPoint(state.base, commit);
-  return (await deps.git.changedBetween(from, commit)).filter((path) => path !== pathOf(change, "state.json"));
+  if (gate === "G2") {
+    const approvedTests = await testFilesChanged(deps, state, rules, commit);
+    const headTests = await testFilesChanged(deps, state, rules, "HEAD");
+    return [pathOf(change, "spec.md"), ...new Set([...approvedTests, ...headTests])];
+  }
+  const fromApproval = await deps.git.forkPoint(state.base, commit);
+  const fromHead = await deps.git.forkPoint(state.base, "HEAD");
+  const approvalChanged = await deps.git.changedBetween(fromApproval, commit);
+  const headChanged = await deps.git.changedBetween(fromHead, "HEAD");
+  const all = [...new Set([...approvalChanged, ...headChanged])];
+  return all.filter((path) => path !== pathOf(change, "state.json"));
 }
 
 async function testFilesChanged(deps: Deps, state: State, rules: Rules, to: string): Promise<string[]> {

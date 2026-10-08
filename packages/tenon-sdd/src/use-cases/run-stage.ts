@@ -19,8 +19,9 @@ const TRY_AGAIN = "Try again";
  * A failed check goes to the last session as a follow-up message. After each 3 failed checks, the person decides.
  */
 export async function runChecked(deps: Deps, { runs, protect, apply, check }: CheckedRun): Promise<StageEnd> {
+  const since = await deps.git.head();
   for (const run of runs) {
-    const end = await settle(await deps.agent.run(run), apply);
+    const end = await settle(await deps.agent.run(run), apply, deps, protect, since);
     if (end) return end;
   }
   for (let failures = 0; ; ) {
@@ -28,22 +29,29 @@ export async function runChecked(deps: Deps, { runs, protect, apply, check }: Ch
     if (!errors.length) return { kind: "passed" };
     failures++;
     if (failures % CHECKS_BEFORE_ASKING === 0 && !(await shouldTryAgain(deps, runs[0]?.title ?? "sdd", failures))) return { kind: "stopped" };
-    const end = await settle(await deps.agent.followUp(failureMessage(errors)), apply);
+    const end = await settle(await deps.agent.followUp(failureMessage(errors)), apply, deps, protect, since);
     if (end) return end;
   }
 }
 
 /**
  * The bash gap: the tool_call guard cannot see files that bash writes.
- * Restore each protected file that changed since the last commit, and state.json if it is not the state of the runner.
+ * Restore each protected file that changed since `since`, and state.json if it is not the state of the runner.
  */
-export async function protectedErrors(deps: Deps, change: Change, policy: Policy, state: State): Promise<string[]> {
+export async function protectedErrors(deps: Deps, change: Change, policy: Policy, state: State, since: string): Promise<string[]> {
   const own = [AREAS_DIR, ...(policy.kind === "setup" ? [] : [RULES_PATH]), ...(policy.specLocked ? [pathOf(change, "spec.md")] : []), ...policy.lockedTests];
   const otherChanges = ["sdd/changes", `:(exclude)${change.dir}`];
-  const changed = [...(await deps.git.changedSince("HEAD", own)), ...(await deps.git.changedSince("HEAD", otherChanges))];
   const errors: string[] = [];
+
+  const head = await deps.git.head();
+  if (head !== since) {
+    await deps.git.resetSoft(since);
+    errors.push("Do not run git commit. The runner commits. Your commits were undone; their changes stay in the working tree.");
+  }
+
+  const changed = [...(await deps.git.changedSince(since, own)), ...(await deps.git.changedSince(since, otherChanges))];
   if (changed.length) {
-    await deps.git.restore("HEAD", changed);
+    await deps.git.restore(since, changed);
     errors.push(`You changed ${changed.join(", ")}, which this stage cannot change. The runner restored the files. Use request_return if a change there is necessary.`);
   }
   if ((await readText(deps.root, pathOf(change, "state.json"))) !== stateText(state)) {
@@ -53,9 +61,15 @@ export async function protectedErrors(deps: Deps, change: Change, policy: Policy
   return errors;
 }
 
-async function settle(outcome: StageOutcome, apply: CheckedRun["apply"]): Promise<StageEnd | undefined> {
-  if (outcome.aborted) return { kind: "stopped" };
-  if (outcome.returnRequest) return { kind: "returned", request: outcome.returnRequest };
+async function settle(outcome: StageOutcome, apply: CheckedRun["apply"], deps: Deps, protect: CheckedRun["protect"], since: string): Promise<StageEnd | undefined> {
+  if (outcome.aborted) {
+    await protect();
+    return { kind: "stopped" };
+  }
+  if (outcome.returnRequest) {
+    await protect();
+    return { kind: "returned", request: outcome.returnRequest };
+  }
   await apply(outcome);
   return undefined;
 }

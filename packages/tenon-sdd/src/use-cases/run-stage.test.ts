@@ -59,14 +59,41 @@ describe("protectedErrors", () => {
     const { project, deps: d } = deps();
     const change = await startChange(d, { request: "Sort", slug: "sort" });
     const state = await readState(change);
+    const since = await d.git.head();
     project.write("sdd/areas/favorites.md", "broken\n");
     project.write("sdd/changes/2026-09-01-old/spec.md", "new file in another change\n");
     project.write(`${change.dir}/state.json`, "{}\n");
-    const errors = await protectedErrors(d, change, POLICY, state);
+    const errors = await protectedErrors(d, change, POLICY, state, since);
     expect(errors).toHaveLength(2);
     expect(errors[0]).toMatch(/sdd\/areas\/favorites.md, sdd\/changes\/2026-09-01-old\/spec.md/);
     expect(project.read("sdd/areas/favorites.md")).toBe(AREA);
     expect(project.read(`${change.dir}/state.json`)).toBe(stateText(state));
-    expect(await protectedErrors(d, change, POLICY, state)).toEqual([]);
+    expect(await protectedErrors(d, change, POLICY, state, since)).toEqual([]);
+  });
+
+  it("undoes committed changes and restores files", async () => {
+    const { project, deps: d } = deps();
+    const change = await startChange(d, { request: "Sort", slug: "sort" });
+    const state = await readState(change);
+    const since = await d.git.head();
+    project.write("sdd/areas/favorites.md", "edited\n");
+    project.run("commit", "-qam", "agent edit");
+    const errors = await protectedErrors(d, change, POLICY, state, since);
+    expect(errors[0]).toContain("Do not run git commit");
+    expect(await d.git.head()).toBe(since);
+    expect(project.read("sdd/areas/favorites.md")).toBe(AREA);
+  });
+
+  it("protects against protected file changes on early exit", async () => {
+    const { project, deps: d } = deps(async () => {
+      project.write("sdd/areas/favorites.md", "broken\n");
+      return { returnRequest: { stage: "spec" as const, reason: "wrong" } };
+    });
+    const change = await startChange(d, { request: "Sort", slug: "sort" });
+    const state = await readState(change);
+    const since = await d.git.head();
+    const realProtect = async () => protectedErrors(d, change, POLICY, state, since);
+    await runChecked(d, { runs: [RUN], protect: realProtect, apply: async () => {}, check: async () => [] });
+    expect(project.read("sdd/areas/favorites.md")).toBe(AREA);
   });
 });

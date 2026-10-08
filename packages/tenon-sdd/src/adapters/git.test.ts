@@ -127,4 +127,18 @@ describe("createGit", () => {
     const { git } = repository();
     await expect(git.restore("HEAD", ["../outside.txt"])).rejects.toThrow("Path is outside the repository");
   });
+
+  it("resets to a commit with changes in the staging area", async () => {
+    const { root, git } = repository();
+    const base = await git.head();
+    writeFileSync(join(root, "a.txt"), "changed\n");
+    await git.commitAll("edit");
+    const edit = await git.head();
+    expect(edit).not.toBe(base);
+    await git.resetSoft(base);
+    expect(await git.head()).toBe(base);
+    const changed = await git.changedSince("HEAD", ["a.txt"]);
+    expect(changed).toContain("a.txt");
+    expect(readFileSync(join(root, "a.txt"), "utf8")).toBe("changed\n");
+  });
 });

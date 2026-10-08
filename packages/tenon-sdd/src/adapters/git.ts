@@ -80,6 +80,9 @@ export function createGit(root: string) {
     fileAt: (ref: string, path: string) => git("show", `${ref}:${path}`).catch(() => undefined),
     diff: (from: string, paths: readonly string[] = []) => git("diff", from, "HEAD", "--", ...paths),
     diffStat: (from: string) => git("diff", "--stat", from, "HEAD"),
+    resetSoft: async (commit: string) => {
+      await git("reset", "-q", "--soft", commit);
+    },
   };
 }
 

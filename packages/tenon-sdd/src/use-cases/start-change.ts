@@ -16,6 +16,7 @@ export function suggestSlug(request: string): string {
 
 /** Make the branch and the change folder, write the first state.json, and commit it. */
 export async function startChange(deps: Deps, { request, slug }: { request: string; slug: string }): Promise<Change> {
+  if (!isValidSlug(slug)) throw new Error(`Invalid slug "${slug}". Use lowercase letters, digits, and hyphens.`);
   const unique = await uniqueSlug(deps, slug);
   const folder = `${isoDate(deps.now())}-${unique}`;
   const base = await deps.git.currentBranch();
@@ -27,6 +28,10 @@ export async function startChange(deps: Deps, { request, slug }: { request: stri
   await writeState(change, state);
   await deps.git.commitAll(`sdd(${unique}): start`);
   return change;
+}
+
+function isValidSlug(slug: string): boolean {
+  return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug);
 }
 
 /** The slug, or the slug with -2, -3, … if a change folder or a branch already uses it. Test names start with the slug, so it must be unique. */

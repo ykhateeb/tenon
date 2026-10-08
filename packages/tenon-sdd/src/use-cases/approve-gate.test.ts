@@ -13,13 +13,34 @@ async function started() {
 }
 
 describe("recordApproval", () => {
-  it("commits the work, records that commit, and commits state.json", async () => {
+  it("records a valid approval at the reviewed HEAD", async () => {
     const { project, deps, change } = await started();
     project.write(`${change.dir}/spec.md`, "# Spec: Sort\n");
-    const approved = await recordApproval(deps, change, "G1", await readState(change));
-    expect(approved.gates).toEqual([{ gate: "G1", result: "approved", commit: project.run("rev-parse", "HEAD~1"), by: "Sam", at: "2026-10-08" }]);
-    expect(project.run("log", "-2", "--format=%s")).toBe("sdd(sort): record G1\nsdd(sort): G1 approved");
+    const reviewedHead = (await project.git.commitAll("sdd(sort): spec done"))!;
+    const approved = await recordApproval(deps, change, "G1", await readState(change), reviewedHead);
+    expect(approved).toBeDefined();
+    expect(approved!.gates).toEqual([{ gate: "G1", result: "approved", commit: reviewedHead, by: "Sam", at: "2026-10-08" }]);
+    expect(project.run("log", "-1", "--format=%s")).toBe("sdd(sort): G1 approved");
     expect(project.run("status", "--porcelain")).toBe("");
+  });
+
+  it("refuses approval when a file changes after reviewedHead", async () => {
+    const { project, deps, change } = await started();
+    project.write(`${change.dir}/spec.md`, "# Spec: Sort\n");
+    const reviewedHead = (await project.git.commitAll("sdd(sort): spec done"))!;
+    project.write(`${change.dir}/spec.md`, "# Spec: Sort v2\n");
+    const approved = await recordApproval(deps, change, "G1", await readState(change), reviewedHead);
+    expect(approved).toBeUndefined();
+  });
+
+  it("refuses approval when HEAD moved", async () => {
+    const { project, deps, change } = await started();
+    project.write(`${change.dir}/spec.md`, "# Spec: Sort\n");
+    const reviewedHead = (await project.git.commitAll("sdd(sort): spec done"))!;
+    project.write("other.txt", "content\n");
+    await project.git.commitAll("other change");
+    const approved = await recordApproval(deps, change, "G1", await readState(change), reviewedHead);
+    expect(approved).toBeUndefined();
   });
 });
 
@@ -27,13 +48,44 @@ describe("invalidGates and lockedTests", () => {
   it("find a gate whose covered file changed, and the approved tests", async () => {
     const { project, deps, change, rules } = await started();
     project.write(`${change.dir}/spec.md`, "# Spec: Sort\n");
-    let state = await recordApproval(deps, change, "G1", await readState(change));
+    let reviewed = (await project.git.commitAll("sdd(sort): spec done"))!;
+    let state = (await recordApproval(deps, change, "G1", await readState(change), reviewed))!;
     project.write("tests/sort.txt", "sort-us1-s1|src/sort.txt\n");
-    state = await recordApproval(deps, change, "G2", state);
+    reviewed = (await project.git.commitAll("sdd(sort): tests done"))!;
+    state = (await recordApproval(deps, change, "G2", state, reviewed))!;
     expect(await lockedTests(deps, state, rules)).toEqual(["tests/sort.txt"]);
     expect(await invalidGates(deps, change, state, rules)).toEqual([]);
     project.write(`${change.dir}/spec.md`, "# Spec: Sort, changed\n");
     expect(await invalidGates(deps, change, state, rules)).toEqual(["G1", "G2"]);
+  });
+
+  it("detects new test files after G2 approval", async () => {
+    const { project, deps, change, rules } = await started();
+    project.write(`${change.dir}/spec.md`, "# Spec: Sort\n");
+    let reviewed = (await project.git.commitAll("sdd(sort): spec done"))!;
+    let state = (await recordApproval(deps, change, "G1", await readState(change), reviewed))!;
+    project.write("tests/sort.txt", "sort-us1-s1|src/sort.txt\n");
+    reviewed = (await project.git.commitAll("sdd(sort): tests done"))!;
+    state = (await recordApproval(deps, change, "G2", state, reviewed))!;
+    project.write("tests/new.txt", "new-us1-s1|src/new.txt\n");
+    await project.git.commitAll("new test");
+    expect(await invalidGates(deps, change, state, rules)).toEqual(["G2"]);
+  });
+
+  it("detects new files after G3 approval", async () => {
+    const { project, deps, change, rules } = await started();
+    project.write(`${change.dir}/spec.md`, "# Spec: Sort\n");
+    let reviewed = (await project.git.commitAll("sdd(sort): spec done"))!;
+    let state = (await recordApproval(deps, change, "G1", await readState(change), reviewed))!;
+    project.write("tests/sort.txt", "sort-us1-s1|src/sort.txt\n");
+    reviewed = (await project.git.commitAll("sdd(sort): tests done"))!;
+    state = (await recordApproval(deps, change, "G2", state, reviewed))!;
+    project.write("src/new.ts", "export const x = 1;\n");
+    reviewed = (await project.git.commitAll("sdd(sort): impl done"))!;
+    state = (await recordApproval(deps, change, "G3", state, reviewed))!;
+    project.write("src/extra.ts", "export const y = 2;\n");
+    await project.git.commitAll("extra file");
+    expect(await invalidGates(deps, change, state, rules)).toEqual(["G3"]);
   });
 });
 
