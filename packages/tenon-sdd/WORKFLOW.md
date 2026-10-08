@@ -123,7 +123,9 @@ Each change has one of two sizes. The size decides which files and which gates t
 - When a person approves a gate, the tool commits all work, adds the approval with that commit, and then commits `state.json`. A gate is approved only if both conditions are true:
   - Its last entry is `approved`.
   - No file that the gate covers changed after that commit. See *Gates* for the files that each gate covers.
-- Agents can add a `reopened` entry. Only a person's action, for example a dialog in the tool, adds an `approved` entry.
+- The runner adds a `reopened` entry when a change returns. Only a person's action, for example a dialog in the tool, adds an `approved` entry.
+- `built` is true after the change first reaches Build. After a return to Stage 3, a test can then pass.
+- `returned` holds the stage and the reason of the last return, until that stage passes its exit check. The runner gives the reason to the sessions of that stage.
 - Never delete an entry. Edits to `state.json` never reopen a gate.
 
 ## Return rule
@@ -137,7 +139,7 @@ If a stage finds a problem, return the change to the stage that owns the problem
 | A wrong or weak approved test | 3 Tests |
 | A code defect, a review comment on the code | 4 Build |
 
-In the small size, a Plan problem means that the change is not small. Change the size to full.
+In the small size, a Plan problem means that the change is not small. Change the size to full. A small change that becomes full starts again at Stage 1.
 
 When you return a change:
 
@@ -502,9 +504,9 @@ PR: <link | none>   Spec version: 2
 - NEW-R1 → FAV-R-005   NEW-Q1 → FAV-Q-002
 
 ## Review
-| # | File | Problem | Action | Done |
+| # | File | Problem | Action | Return to |
 |---|---|---|---|---|
-| 1 | api/favorites.ts | Copies an existing helper | Use the helper | ✓ |
+| 1 | api/favorites.ts | Copies an existing helper | Use the helper | build |
 
 ## Left open
 - Issue #45: sort by name
@@ -640,6 +642,7 @@ If files change while a gate is open, the runner restores the protected files, c
 - The write guard sees only the write and edit tools. The Tests and Build stages also have bash. After each session, the runner restores the protected files that bash changed.
 - If the app stops during a session, the runner trusts the git history on the next `/sdd`. A stage with bash can change that history.
 - Read the branch diff before you merge.
+- Project git hooks run on every runner commit. A commit-msg hook that rejects `sdd(<slug>): …` messages, such as commitlint with the conventional config, stops `/sdd` at its first commit. The runner does not skip hooks, because a hook can be a security check.
 
 ## Quick reference
 

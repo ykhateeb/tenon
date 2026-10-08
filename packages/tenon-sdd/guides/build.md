@@ -1,6 +1,6 @@
 # Stage 4: Build
 
-You write the code until the tests pass. The runner's message names your part: the foundation tasks, one story, or the check. If the message names no part, the change is small: do all of it, then the check part.
+You write the code until the tests pass. The runner's message names your part: the foundation tasks, one story, or the check. If the message names no part, do the remaining tasks, then the check part.
 
 If the message gives a return reason, fix that problem first. Keep the work that is still correct. After a review return, read the Review table in `outcome.md`: it lists each finding.
 
@@ -13,7 +13,7 @@ The foundation part owns the setup tasks and the foundation tasks. The check par
 3. If `sdd/rules.md` says "Inner TDD: required", write a small failing unit test before each code task, then the minimum code, then clean the code while the tests stay green.
 4. At the end of a story, run the fast tier. The tests of the story must pass.
 5. Tick each task in `plan.md` when it is done.
-6. Never change an approved test (a test that `traceability.md` lists). The runner blocks it and restores the file. If a test is wrong, call `request_return` with the stage tests. If the spec is wrong or incomplete, call `request_return` with the stage spec. If the plan is wrong, call `request_return` with the stage plan.
+6. Never change an approved test (a test file that the change wrote before G2). The runner blocks it and restores the file. If a test is wrong, call `request_return` with the stage tests. If the spec is wrong or incomplete, call `request_return` with the stage spec. If the plan is wrong, call `request_return` with the stage plan.
 
 ## Check part
 

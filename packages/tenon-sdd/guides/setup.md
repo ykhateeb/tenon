@@ -12,10 +12,10 @@ You write the rules of this project for spec-driven changes. The runner gave you
    - pytest: `pytest --junitxml=reports/junit.xml`
    - Maestro: `maestro test --format junit --output reports/maestro.xml .maestro/`
    If the project has more than one test command, join them with `;` (on Windows, `&`), so that each command runs and writes its report.
-3. Each JUnit report glob must start with a folder, for example `reports/*.xml`.
-4. Write the globs of the test files in "Test files", for example `**/*.test.ts, e2e/**/*.e2e.ts`.
+3. Each JUnit report glob must start with a folder, for example `reports/*.xml`. The runner commits all files that git does not ignore, so `.gitignore` must ignore each folder that the tests write (the reports folder, `coverage/`, `test-results/`). If one is not ignored, say so in your last message, so that the person adds it to `.gitignore`.
+4. Write the globs of the test files in "Test files", for example `**/*.test.ts, e2e/**/*.e2e.ts`. Include the folders of test fixtures and test data. Otherwise Build can change a fixture that an approved test reads.
 5. Write 3 to 6 principles. Take them from what the code already does. Each rule is one sentence that a person or a tool can check. "Write clean code" is not a rule. "All server data goes through one data layer" is a rule.
-6. Write the file with the structure below. Keep the lines of the Commands section exactly in this form.
+6. Write the file with the structure below. Keep the lines of the Commands section exactly in this form. If the project names no gate approvers, write the owner (`git config user.name`) for each gate.
 7. Stop. After your session, the runner checks only that `sdd/rules.md` parses. The runner runs the full tier after the person approves the rules. If the tier fails, a new session gets the errors: correct the file.
 
 ## Structure

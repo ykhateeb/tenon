@@ -84,7 +84,7 @@ Each test file sits next to the file that it tests. File names use kebab-case, t
 |---|---|
 | `entities/` | Nothing outside `entities/` |
 | `use-cases/` | `entities/`, `use-cases/`, and `adapters/git.ts`, `adapters/shell.ts`, `adapters/junit.ts` |
-| `adapters/` | `entities/` types, `use-cases/ports.ts`, pi, node |
+| `adapters/` | `entities/`, `use-cases/ports.ts`, `use-cases/stages.ts`, pi, node |
 | `extension.ts` | Everything |
 
 The use cases import `git.ts`, `shell.ts`, and `junit.ts` directly, with no port. The tests use a real git repository and real commands in a temporary folder, so they need no fake. Only `Agent` and `Person` have ports, because the tests must fake the model and the person.
