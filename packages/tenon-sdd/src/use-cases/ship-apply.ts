@@ -23,6 +23,7 @@ export async function shipApply(deps: Deps, change: Change, state: State): Promi
   const links = requirementLinks(trace.value.rows);
   const errors: string[] = [];
   const updates: AreaUpdate[] = [];
+  const processedLinks = new Set<string>();
   for (const name of await areaNames(deps.root, spec.value, links)) {
     const path = `${AREAS_DIR}/${name}.md`;
     const area = areaFrom(name, await deps.git.fileAt(state.base, path), spec.value);
@@ -31,14 +32,29 @@ export async function shipApply(deps: Deps, change: Change, state: State): Promi
       continue;
     }
     errors.push(...areaErrors(area.value, name, spec.value));
+    const areaLinks = links.filter((link) => belongsTo(link.id, spec.value, area.value, name));
     const result = applyChange(area.value, {
       folder: change.folder,
       delta: spec.value.delta.filter((item) => item.area === name),
       baseline: spec.value.baseline.filter((item) => item.area === name),
       coverage: spec.value.coverage.find((item) => item.area === name)?.text,
-      tests: links.filter((link) => belongsTo(link.id, spec.value, area.value, name)),
+      tests: areaLinks,
     });
+    for (const link of areaLinks) {
+      if (isFinalId(link.id)) {
+        processedLinks.add(link.id);
+        if (!hasRequirement(result.area, link.id)) {
+          errors.push(`${link.id} has a test, but ${AREAS_DIR}/${name}.md has no ${link.id}.`);
+        }
+      }
+    }
     updates.push({ path, text: renderAreaSpec(result.area), ids: result.ids });
+  }
+  for (const link of links) {
+    if (isFinalId(link.id) && !processedLinks.has(link.id)) {
+      const prefix = link.id.split("-")[0];
+      errors.push(`${link.id} has a test, but no area spec has the prefix ${prefix}.`);
+    }
   }
   if (errors.length) return { errors, ids: new Map() };
   for (const update of updates) {

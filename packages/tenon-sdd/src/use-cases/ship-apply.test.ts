@@ -79,4 +79,22 @@ describe("shipApply", () => {
     expect(await shipApply(deps, change, { ...state, type: "docs", size: "small" })).toEqual({ errors: [], ids: new Map() });
     expect(project.read("sdd/areas/favorites.md")).toBe(AREA);
   });
+
+  it("reports a test link for a prefix with no area", async () => {
+    const { project, deps, change, state } = await started(BUG_SPEC, trace("ZZZ-R-001", "fix-us1-s1"));
+    const result = await shipApply(deps, change, { ...state, type: "bug", size: "small" });
+    expect(result.errors).toEqual([
+      "ZZZ-R-001 has a test, but no area spec has the prefix ZZZ.",
+    ]);
+    expect(project.read("sdd/areas/favorites.md")).toBe(AREA);
+  });
+
+  it("reports a test link for a missing requirement", async () => {
+    const { project, deps, change, state } = await started(BUG_SPEC, trace("FAV-R-099", "fix-us1-s1"));
+    const result = await shipApply(deps, change, { ...state, type: "bug", size: "small" });
+    expect(result.errors).toEqual([
+      "FAV-R-099 has a test, but sdd/areas/favorites.md has no FAV-R-099.",
+    ]);
+    expect(project.read("sdd/areas/favorites.md")).toBe(AREA);
+  });
 });
