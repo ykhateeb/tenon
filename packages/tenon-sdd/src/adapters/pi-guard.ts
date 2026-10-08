@@ -22,6 +22,7 @@ export function onSessionStart(pi: ExtensionAPI, stage: StageContext, ctx: Exten
 
 /**
  * Block write and edit calls to paths that the stage cannot write.
+ * The guard reads the path as text, as pi does, so a symlink inside the project can point at a protected path. The runner check after each session covers it.
  * Bash writes are not visible here: the runner checks the protected paths after each session.
  */
 export function guardToolCall(stage: StageContext, event: ToolCallEvent, cwd: string): ToolCallEventResult | undefined {
@@ -32,7 +33,7 @@ export function guardToolCall(stage: StageContext, event: ToolCallEvent, cwd: st
   return reason ? { block: true, reason } : undefined;
 }
 
-const UNICODE_SPACES = /[  -   　]/g;
+const UNICODE_SPACES = /[\u00a0\u2000-\u200a\u202f\u205f\u3000]/g;
 
 /**
  * The path that pi's write and edit tools use (resolveToCwd in pi, not exported).

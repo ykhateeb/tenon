@@ -56,5 +56,16 @@ describe("guardToolCall", () => {
       const stage = { policy: POLICY };
       expect(guardToolCall(stage, writeEvent("@src/a.ts"), "/repo")).toBeUndefined();
     });
+
+    it("normalizes Unicode spaces to regular spaces before checking policy", () => {
+      const policy: Policy = { kind: "build", changeDir: "sdd/changes/x", specLocked: true, lockedTests: ["src/my test.spec.ts"], testGlobs: [] };
+      const stage = { policy };
+      // U+00A0 (non-breaking space)
+      expect(guardToolCall(stage, writeEvent("src/my test.spec.ts"), "/repo")?.block).toBe(true);
+      // U+2000 (en quad)
+      expect(guardToolCall(stage, writeEvent("src/my test.spec.ts"), "/repo")?.block).toBe(true);
+      // U+3000 (ideographic space)
+      expect(guardToolCall(stage, writeEvent("src/my　test.spec.ts"), "/repo")?.block).toBe(true);
+    });
   });
 });

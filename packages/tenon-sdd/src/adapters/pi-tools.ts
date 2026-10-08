@@ -8,6 +8,7 @@ import type { StageContext } from "./pi-guard.js";
 
 const OTHER = "Other";
 const NO_ANSWER = "No answer. Ask again later, or stop the stage and write why in your last message.";
+const STAGE_UNION = Type.Union([Type.Literal("spec"), Type.Literal("plan"), Type.Literal("tests"), Type.Literal("build")]);
 
 const text = (value: string) => ({ content: [{ type: "text" as const, text: value }], details: undefined });
 
@@ -67,7 +68,7 @@ function requestReturn(pi: ExtensionAPI) {
       "Report a problem that an earlier stage owns: wrong or missing behavior (spec), a wrong approach or a missing task (plan), a wrong or weak approved test (tests), a code defect (build). Use size full to make a small change full. After this call, stop.",
     exposure: "model-only",
     parameters: Type.Object({
-      stage: Type.Union([Type.Literal("spec"), Type.Literal("plan"), Type.Literal("tests"), Type.Literal("build")]),
+      stage: STAGE_UNION,
       reason: Type.String(),
       size: Type.Optional(Type.Literal("full")),
     }),
@@ -90,7 +91,7 @@ function reportReview(pi: ExtensionAPI) {
           file: Type.String(),
           problem: Type.String(),
           action: Type.String(),
-          returnTo: Type.Union([Type.Literal("spec"), Type.Literal("plan"), Type.Literal("tests"), Type.Literal("build")]),
+          returnTo: STAGE_UNION,
         }),
       ),
     }),

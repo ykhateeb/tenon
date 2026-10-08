@@ -2,13 +2,9 @@ import type { ExtensionCommandContext, SessionEntry } from "@earendil-works/pi-c
 import { ENTRY, type Agent, type Finding, type ReturnRequest, type StageOutcome, type StageRun } from "../use-cases/ports.js";
 import type { Classification } from "../entities/state.js";
 
-// ReplacedSessionContext is from pi's extensions but not re-exported from main index.d.ts
-// Define a working type with the methods we use
-export type ReplacedSessionContext = ExtensionCommandContext & {
-  sendMessage(message: unknown, options?: unknown): Promise<void>;
-  sendUserMessage(content: string | unknown[], options?: unknown): Promise<void>;
-  waitForIdle?(timeout?: number): Promise<void>;
-};
+type NewSessionOptions = NonNullable<Parameters<ExtensionCommandContext["newSession"]>[0]>;
+/** pi does not export this type from its root, so take it from the newSession option. */
+export type ReplacedSessionContext = Parameters<NonNullable<NewSessionOptions["withSession"]>>[0];
 
 export type PiAgent = Agent & {
   /** The context of the newest session: the start chat, or the last stage session. */
