@@ -101,7 +101,7 @@ function readCommonLine(spec: Spec, text: string): void {
 function readDeltaLine(spec: Spec, errors: string[], { text, next, at }: Line, area: string | undefined): void {
   const match = DELTA_ITEM.exec(text);
   if (!match) {
-    if (text.startsWith("- ")) {
+    if (text.startsWith("- ") && !OPEN.test(text)) {
       errors.push(`${at}: a delta item looks like "- ADDED NEW-R1: <text>", "- MODIFIED <ID>: <text>", or "- REMOVED <ID>: <text>".`);
     }
     return;
@@ -133,7 +133,7 @@ function readBaselineLine(spec: Spec, errors: string[], { text, next, at }: Line
   if (coverage && area) spec.coverage.push({ area, text: coverage[1] });
   const match = BASELINE_ITEM.exec(text);
   if (!match) {
-    if (text.startsWith("- ")) {
+    if (text.startsWith("- ") && !OPEN.test(text)) {
       errors.push(`${at}: a baseline item looks like "- BASE-R1: <text>".`);
     }
     return;

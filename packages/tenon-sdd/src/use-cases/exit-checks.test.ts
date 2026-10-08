@@ -16,8 +16,6 @@ const SPEC = `# Spec: Sort
 - ADDED NEW-R1: Users can sort favorites by date
 - MODIFIED FAV-R-002: List shows newest first
     (was: List shows in the order added)
-
-## Questions
 `;
 const TRACE = (evidence = "") => `# Traceability: Sort
 | ID | Scenario | Level | Test | Status | Evidence | Verdict |

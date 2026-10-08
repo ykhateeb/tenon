@@ -116,6 +116,17 @@ Coverage: shipping and coupons have no spec yet
       expect(result.value.delta).toEqual([]);
     }
   });
+
+  it("allows open questions in the delta section", () => {
+    const spec = valueOf(`# Spec: Cleanup
+## Delta
+### sdd/areas/favorites.md
+- REMOVED FAV-R-003: Max 100 favorites
+    (why: the limit is not necessary)
+- [OPEN] Remove FAV-R-003 too?
+`);
+    expect(spec.openQuestions).toEqual(["Remove FAV-R-003 too?"]);
+  });
 });
 
 describe("sizeErrors", () => {
