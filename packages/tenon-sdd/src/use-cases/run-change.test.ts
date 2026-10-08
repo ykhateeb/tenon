@@ -286,6 +286,37 @@ describe("createRunner", () => {
     expect(state.gates).toContainEqual(expect.objectContaining({ gate: "G1", result: "reopened" }));
   });
 
+  it("stops on a merge conflict with the base, refuses to resume during the merge, and continues after the person commits", async () => {
+    const project = createFakeProject();
+    const work = sortScript(project);
+    const script: AgentScript = async (run, count) => {
+      if (run.title === "sdd: build check (sort)") {
+        const worktree = mkdtempSync(join(tmpdir(), "tenon-sdd-main-"));
+        project.run("worktree", "add", "-q", worktree, "main");
+        writeFileSync(join(worktree, "src/sort.txt"), "main version\n");
+        execFileSync("git", ["-C", worktree, "add", "-A"]);
+        execFileSync("git", ["-C", worktree, "commit", "-qm", "sort on main"]);
+      }
+      return work(run, count);
+    };
+    const first = runner(project, script, { inputs: ["sort"], gates: [APPROVE, APPROVE] });
+    await first.runner.start("Sort favorites by date");
+    expect(first.notices.at(-1)).toMatch(/^Merging main into this branch failed\. Resolve the conflicts, commit, and run \/sdd again\./);
+    expect(gatesOf(first.asked)).toEqual(["G1", "G2"]);
+    const second = runner(project, script, {});
+    await second.runner.resume();
+    expect(second.notices).toEqual(["Finish the merge first: resolve the conflicts and commit. Then run /sdd again."]);
+    expect(second.runs).toEqual([]);
+    project.run("checkout", "-q", "--ours", "src/sort.txt");
+    project.run("add", "src/sort.txt");
+    project.run("commit", "-q", "--no-edit");
+    const third = runner(project, script, { gates: [APPROVE] });
+    await third.runner.resume();
+    expect(gatesOf(third.asked)).toEqual(["G3"]);
+    expect(project.read("src/sort.txt")).toBe("sorted\n");
+    expect(stateOf(project).stage).toBe("done");
+  });
+
   it("continues at the gate where it stopped", async () => {
     const project = createFakeProject();
     const first = runner(project, sortScript(project), { inputs: ["sort"], gates: [APPROVE, STOP] });

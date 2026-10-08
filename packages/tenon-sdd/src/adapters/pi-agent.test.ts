@@ -55,6 +55,30 @@ describe("createPiAgent", () => {
     expect(sent).toEqual(["Read the guide.", "Correct the spec."]);
   });
 
+  it("opens the second stage session from the first one, under the start session", async () => {
+    const opened: { from: string; parent: string | undefined }[] = [];
+    const contextNamed = (name: string): unknown => {
+      const branch: SessionEntry[] = [];
+      return {
+        sessionManager: { getSessionFile: () => `/sessions/${name}.jsonl`, getBranch: () => branch },
+        sendUserMessage: async () => void branch.push(assistant("stop")),
+        waitForIdle: async () => {},
+        newSession: async ({ parentSession, withSession }: NewSessionOptions) => {
+          opened.push({ from: name, parent: parentSession });
+          await withSession?.(contextNamed(`stage${opened.length}`) as ReplacedSessionContext);
+          return { cancelled: false };
+        },
+      };
+    };
+    const agent = createPiAgent(contextNamed("start") as ExtensionCommandContext);
+    await agent.run({ title: "sdd: plan (x)", message: "m", policy: POLICY });
+    await agent.run({ title: "sdd: tests (x)", message: "m", policy: POLICY });
+    expect(opened).toEqual([
+      { from: "start", parent: "/sessions/start.jsonl" },
+      { from: "stage1", parent: "/sessions/start.jsonl" },
+    ]);
+  });
+
   it("reports a cancelled session as a stop, and refuses a follow-up before a run", async () => {
     const start = { sessionManager: { getSessionFile: () => undefined }, newSession: async () => ({ cancelled: true }) } as unknown as ExtensionCommandContext;
     const agent = createPiAgent(start);

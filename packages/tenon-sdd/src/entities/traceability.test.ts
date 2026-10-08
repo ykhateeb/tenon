@@ -76,6 +76,13 @@ describe("testsStageErrors", () => {
     expect(characterization[0].status).toBe("failing");
   });
 
+  it("wants a characterization test to pass in fail-first mode", () => {
+    const rows = withStatuses([{ ...trace().rows[0], scenario: "Characterization", level: "Characterization" }], CASES, "fail-first");
+    expect(testsStageErrors(rows, { ...SPEC, scenarios: [], delta: [] }, "fail-first")).toEqual([
+      'NEW-R1 Characterization: e2e/favorites-sorting-us1-s1 is "failing", and it must be "passing".',
+    ]);
+  });
+
   it("accepts a passing or an expected failing test after Build, but not a skipped one", () => {
     const cases: TestCase[] = [{ ...CASES[0], result: "passed" }, CASES[1], CASES[2]];
     const rows = withStatuses(trace().rows, cases, "after-build");
@@ -97,6 +104,11 @@ describe("withVerdicts and buildStageErrors", () => {
       'FAV-R-002 US2-S1: the test is "passing", and the evidence is "src/missing.ts".',
       'NEW-Q1 Performance: the test is "passing", and the evidence is "empty".',
     ]);
+  });
+
+  it("reports a REMOVED row whose deleted test still runs", () => {
+    const rows = withStatuses(trace().rows, [{ name: "favorites-us1-s4-limit", className: "e2e", result: "passed" }], "pass");
+    expect(buildStageErrors(withVerdicts(rows.slice(3), () => true))).toEqual(["The deleted test favorites-us1-s4-limit of REMOVED FAV-R-003 still runs."]);
   });
 
   it("refuses an extra row", () => {

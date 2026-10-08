@@ -100,6 +100,20 @@ describe("invalidGates and lockedTests", () => {
 });
 
 describe("gateSummary", () => {
+  it("shows the outcome, the area spec diff, and the file list at G3", async () => {
+    const { project, deps, change, rules } = await started();
+    project.write(`${change.dir}/outcome.md`, "# Outcome: sort\n\n## Delivered\n- US1\n");
+    project.write("sdd/areas/favorites.md", project.read("sdd/areas/favorites.md").replace("Max 100 favorites", "Max 500 favorites"));
+    project.write("src/sort.txt", "sorted\n");
+    await project.git.commitAll("sdd(sort): build passed");
+    const summary = await gateSummary(deps, change, "G3", await readState(change), rules);
+    expect(summary).toContain("**Is the final diff, the area specs included, correct and good code to keep?**");
+    expect(summary).toContain("## Delivered");
+    expect(summary).toMatch(/### Area spec changes\n\n```diff\n[\s\S]*\+- FAV-R-003: Max 500 favorites/);
+    expect(summary).toMatch(/### Files\n\n```\n[\s\S]*src\/sort.txt/);
+    expect(summary).not.toContain("### sdd/changes/2026-10-08-sort/spec.md");
+  });
+
   it("shows the question and the spec at G1", async () => {
     const { project, deps, change, rules } = await started();
     project.write(`${change.dir}/spec.md`, "# Spec: Sort\n");

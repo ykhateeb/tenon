@@ -115,7 +115,7 @@ describe("createGit", () => {
     run("commit", "-qam", "main edit");
     run("switch", "-q", "sdd/2026-10-08-sort");
     await git.mergeBase("main");
-    run("checkout", "--ours", "a.txt");
+    run("checkout", "-q", "--ours", "a.txt");
     run("add", "a.txt");
     const commit = await git.commitAll("resolved");
     expect(commit).toBeDefined();

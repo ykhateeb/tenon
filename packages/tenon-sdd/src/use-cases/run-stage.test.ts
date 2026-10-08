@@ -39,6 +39,12 @@ describe("runChecked", () => {
     expect(followUps).toHaveLength(2);
   });
 
+  it("gives 3 more checks when the person says Try again", async () => {
+    const { deps: d, followUps } = deps(async () => {}, { choices: ["Try again", "Stop"] });
+    expect(await runChecked(d, { runs: [RUN], protect: none, apply: nothing, check: async () => ["Still wrong."] })).toEqual({ kind: "stopped" });
+    expect(followUps).toHaveLength(5);
+  });
+
   it("stops when the person stops the agent, and returns on a return request", async () => {
     const stopped = deps(async () => ({ aborted: true }));
     expect(await runChecked(stopped.deps, { runs: [RUN], protect: none, apply: nothing, check: none })).toEqual({ kind: "stopped" });

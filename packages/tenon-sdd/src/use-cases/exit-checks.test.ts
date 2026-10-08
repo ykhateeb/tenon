@@ -77,6 +77,21 @@ describe("exitErrors", () => {
   });
 });
 
+describe("exitErrors in pass mode", () => {
+  it("wants each test to pass for a refactor or a chore", async () => {
+    const { project, deps, change } = setup();
+    project.write(`${DIR}/spec.md`, SPEC);
+    project.write(`${DIR}/plan.md`, "## Tasks\n- [x] T001 (test) [US1-S1] Test in tests/sort.txt\n- [ ] T002 [NEW-R1, FAV-R-002] Sort in src/sort.txt\n");
+    project.write(`${DIR}/traceability.md`, TRACE());
+    project.write("tests/sort.txt", "sort-us1-s1|src/sort.txt\n");
+    const rules = await readRules(project.root);
+    expect((await exitErrors(deps, change, state({ stage: "tests", type: "refactor" }), rules)).join("\n")).toMatch(/"failing", and it must be "passing"/);
+    project.write("src/sort.txt", "sorted\n");
+    expect(await exitErrors(deps, change, state({ stage: "tests", type: "chore" }), rules)).toEqual([]);
+    expect(project.read(`${DIR}/traceability.md`)).toContain("| passing |");
+  });
+});
+
 describe("buildErrors", () => {
   it("runs the mutation command only when the other checks pass", async () => {
     const { project, deps, change } = setup();
@@ -89,6 +104,7 @@ describe("buildErrors", () => {
     expect(existsSync(join(project.root, "mutation-ran"))).toBe(false);
     project.write(`${DIR}/traceability.md`, TRACE("src/sort.txt"));
     expect((await exitErrors(deps, change, state({ stage: "build" }), rules)).join("\n")).toMatch(/The mutation command failed/);
+    expect(await exitErrors(deps, change, state({ stage: "build" }), { ...rules, mutation: "true" })).toEqual([]);
   });
 });
 

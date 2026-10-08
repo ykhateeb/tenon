@@ -128,6 +128,18 @@ Coverage: shipping and coupons have no spec yet
     expect(errors).toMatch(/area heading looks like/);
   });
 
+  it("does not put an item under a bad heading into the area above it", () => {
+    const errors = errorsOf(`# Spec: Two areas
+## Delta
+### sdd/areas/favorites.md
+- ADDED NEW-R1: Users can sort favorites by date
+### sdd/areas/Lists.md
+- ADDED NEW-R2: Users can sort lists
+`);
+    expect(errors).toMatch(/spec.md line 5: an area heading looks like/);
+    expect(errors).toMatch(/spec.md line 6: put a "### sdd\/areas\/<area>.md" heading above the delta item NEW-R2/);
+  });
+
   it("rejects a malformed delta item with no colon", () => {
     expect(errorsOf(SPEC.replace("- MODIFIED FAV-R-002: List shows newest first", "- MODIFIED FAV-R-002 List shows newest first"))).toMatch(/delta item looks like/);
   });

@@ -13,6 +13,7 @@ describe("matchesAny", () => {
     ["reports/a+b.xml", "reports/a+b.xml", true],
     ["tests/a1.txt", "tests/a?.txt", true],
     ["tests/x/y.txt", "tests/**", true],
+    ["abts", "a.ts", false],
   ])("%s against %s is %s", (path, glob, expected) => {
     expect(matchesAny(path, [glob])).toBe(expected);
   });
