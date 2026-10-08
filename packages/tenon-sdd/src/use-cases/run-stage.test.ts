@@ -103,7 +103,9 @@ describe("protectedErrors", () => {
     const state = await readState(change);
     const since = await d.git.head();
     project.run("checkout", "-q", "main");
+    const mainHeadBefore = await project.git.head();
     await expect(protectedErrors(d, change, POLICY, state, since)).rejects.toThrow("The agent switched the branch");
     expect(await project.git.currentBranch()).toBe("main");
+    expect(await project.git.head()).toBe(mainHeadBefore);
   });
 });
