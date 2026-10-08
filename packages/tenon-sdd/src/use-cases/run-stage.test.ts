@@ -96,4 +96,14 @@ describe("protectedErrors", () => {
     await runChecked(d, { runs: [RUN], protect: realProtect, apply: async () => {}, check: async () => [] });
     expect(project.read("sdd/areas/favorites.md")).toBe(AREA);
   });
+
+  it("rejects when the agent switches the branch", async () => {
+    const { project, deps: d } = deps();
+    const change = await startChange(d, { request: "Sort", slug: "sort" });
+    const state = await readState(change);
+    const since = await d.git.head();
+    project.run("checkout", "-q", "main");
+    await expect(protectedErrors(d, change, POLICY, state, since)).rejects.toThrow("The agent switched the branch");
+    expect(await project.git.currentBranch()).toBe("main");
+  });
 });

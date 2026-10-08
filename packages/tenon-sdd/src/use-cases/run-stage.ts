@@ -19,9 +19,8 @@ const TRY_AGAIN = "Try again";
  * A failed check goes to the last session as a follow-up message. After each 3 failed checks, the person decides.
  */
 export async function runChecked(deps: Deps, { runs, protect, apply, check }: CheckedRun): Promise<StageEnd> {
-  const since = await deps.git.head();
   for (const run of runs) {
-    const end = await settle(await deps.agent.run(run), apply, deps, protect, since);
+    const end = await settle(await deps.agent.run(run), apply, protect);
     if (end) return end;
   }
   for (let failures = 0; ; ) {
@@ -29,7 +28,7 @@ export async function runChecked(deps: Deps, { runs, protect, apply, check }: Ch
     if (!errors.length) return { kind: "passed" };
     failures++;
     if (failures % CHECKS_BEFORE_ASKING === 0 && !(await shouldTryAgain(deps, runs[0]?.title ?? "sdd", failures))) return { kind: "stopped" };
-    const end = await settle(await deps.agent.followUp(failureMessage(errors)), apply, deps, protect, since);
+    const end = await settle(await deps.agent.followUp(failureMessage(errors)), apply, protect);
     if (end) return end;
   }
 }
@@ -39,6 +38,11 @@ export async function runChecked(deps: Deps, { runs, protect, apply, check }: Ch
  * Restore each protected file that changed since `since`, and state.json if it is not the state of the runner.
  */
 export async function protectedErrors(deps: Deps, change: Change, policy: Policy, state: State, since: string): Promise<string[]> {
+  const branch = await deps.git.currentBranch();
+  if (branch !== `sdd/${change.folder}`) {
+    throw new Error(`The agent switched the branch to "${branch}". Switch back to sdd/${change.folder} and run /sdd again.`);
+  }
+
   const own = [AREAS_DIR, ...(policy.kind === "setup" ? [] : [RULES_PATH]), ...(policy.specLocked ? [pathOf(change, "spec.md")] : []), ...policy.lockedTests];
   const otherChanges = ["sdd/changes", `:(exclude)${change.dir}`];
   const errors: string[] = [];
@@ -61,7 +65,7 @@ export async function protectedErrors(deps: Deps, change: Change, policy: Policy
   return errors;
 }
 
-async function settle(outcome: StageOutcome, apply: CheckedRun["apply"], deps: Deps, protect: CheckedRun["protect"], since: string): Promise<StageEnd | undefined> {
+async function settle(outcome: StageOutcome, apply: CheckedRun["apply"], protect: CheckedRun["protect"]): Promise<StageEnd | undefined> {
   if (outcome.aborted) {
     await protect();
     return { kind: "stopped" };

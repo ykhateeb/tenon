@@ -18,36 +18,47 @@ export async function setupRules(deps: Deps, change: Change): Promise<"approved"
     const end = await runChecked(deps, { runs: [run], protect: async () => protectedErrors(deps, change, policy, state, since), apply: async () => {}, check: () => parseRulesOnly(deps) });
     if (end.kind !== "passed") return "stopped";
 
-    const reviewedHead = (await deps.git.commitAll(`sdd(${change.slug}): rules draft`)) ?? (await deps.git.head());
+    let reviewedHead = (await deps.git.commitAll(`sdd(${change.slug}): rules draft`)) ?? (await deps.git.head());
+    let breakForAgentFeedback = false;
+    let agentFeedback: string[] = [];
 
-    const answer = await deps.person.gate(`Approve ${RULES_PATH}?`, `## Rules · ${change.slug}\n\n${(await readText(deps.root, RULES_PATH)) ?? ""}`);
-    if (answer.kind === "stop") return "stopped";
-    if (answer.kind === "change") {
-      feedback = [`The person asked for this change: ${answer.feedback}`];
-      continue;
+    for (;;) {
+      const answer = await deps.person.gate(`Approve ${RULES_PATH}?`, `## Rules · ${change.slug}\n\n${(await readText(deps.root, RULES_PATH)) ?? ""}`);
+      if (answer.kind === "stop") return "stopped";
+      if (answer.kind === "change") {
+        feedback = [`The person asked for this change: ${answer.feedback}`];
+        break; // Go back to agent session
+      }
+
+      // answer.kind === "approve"
+      const head = await deps.git.head();
+      if (!(await deps.git.isClean()) || head !== reviewedHead) {
+        deps.person.notify("Files changed after the summary. Review the gate again.", "warning");
+        reviewedHead = (await deps.git.commitAll(`sdd(${change.slug}): rules draft`)) ?? (await deps.git.head());
+        continue; // Show gate again
+      }
+
+      const rulesText = await deps.git.fileAt(reviewedHead, RULES_PATH);
+      const rulesParsed = parseRules(rulesText ?? "");
+      if (!rulesParsed.ok) {
+        agentFeedback = [`The full tier check failed: ${rulesParsed.errors.join(", ")}`];
+        breakForAgentFeedback = true;
+        break; // Go back to agent session
+      }
+
+      const tier = await runFullTier(deps, rulesParsed.value);
+      if (tier.errors.length) {
+        agentFeedback = tier.errors.map((error) => `The full tier check failed: ${error}`);
+        breakForAgentFeedback = true;
+        break; // Go back to agent session
+      }
+
+      return "approved";
     }
 
-    // answer.kind === "approve"
-    const head = await deps.git.head();
-    if (!(await deps.git.isClean()) || head !== reviewedHead) {
-      deps.person.notify("Files changed after the summary. Review the gate again.", "warning");
-      continue;
+    if (breakForAgentFeedback) {
+      feedback = agentFeedback;
     }
-
-    const rulesText = await readText(deps.root, RULES_PATH);
-    const rulesParsed = parseRules(rulesText ?? "");
-    if (!rulesParsed.ok) {
-      feedback = [`The full tier check failed: ${rulesParsed.errors.join(", ")}`];
-      continue;
-    }
-
-    const tier = await runFullTier(deps, rulesParsed.value);
-    if (tier.errors.length) {
-      feedback = tier.errors.map((error) => `The full tier check failed: ${error}`);
-      continue;
-    }
-
-    return "approved";
   }
 }
 
