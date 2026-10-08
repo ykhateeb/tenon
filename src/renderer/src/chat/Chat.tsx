@@ -95,7 +95,10 @@ function Message({ m, results, running }: { m: AgentMessage; results: Map<string
     case "branchSummary":
       return <div className="ml-10 text-xs text-muted">branch summary · {m.summary.slice(0, 160)}</div>;
     case "custom":
-      return m.display ? <div className="ml-10 text-sm text-sub"><span className="font-mono font-semibold text-orange">{m.customType}</span> {textOf(m.content)}</div> : null;
+      if (!m.display) return null;
+      // tenon-sdd sends its gate summary as this custom type: the person reads the spec, the plan, or the outcome here.
+      if (m.customType === "sdd-gate") return <div className="md ml-10"><Markdown>{textOf(m.content)}</Markdown></div>;
+      return <div className="ml-10 text-sm text-sub"><span className="font-mono font-semibold text-orange">{m.customType}</span> {textOf(m.content)}</div>;
     default:
       return null;
   }

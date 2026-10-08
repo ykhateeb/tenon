@@ -14,6 +14,7 @@ import {
 import { DIALOG_CANCELLED, type Send, type TrustAnswer } from "#protocol";
 import { settingsWithoutMissing } from "#core/packages";
 import tenonCanvas from "#canvas/extension";
+import tenonSdd from "#sdd/extension";
 import type { Dialogs } from "./extension-ui";
 
 /** Project trust, and pi runtimes that load a project's own files only when it is trusted. */
@@ -30,9 +31,12 @@ export function createRuntimes({ send, modelRuntime, ask }: { send: Send; modelR
       cwd,
       modelRuntime,
       settingsManager,
-      // Tenon ships the design canvas itself: no `pi install` needed. Bundle is out/main/agent.js.
+      // Tenon ships the design canvas and the sdd runner itself: no `pi install` needed. Bundle is out/main/agent.js.
       resourceLoaderOptions: {
-        extensionFactories: [{ name: "tenon-canvas", factory: tenonCanvas }],
+        extensionFactories: [
+          { name: "tenon-canvas", factory: tenonCanvas },
+          { name: "tenon-sdd", factory: (pi) => tenonSdd(pi, { guidesDir: join(import.meta.dirname, "../../packages/tenon-sdd/guides") }) },
+        ],
         additionalSkillPaths: [join(import.meta.dirname, "../../packages/tenon-canvas/skills")],
       },
       resourceLoaderReloadOptions: { resolveProjectTrust: async () => trusted },

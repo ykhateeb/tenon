@@ -78,6 +78,10 @@ The window shows model output, so the agent and main treat each value from the w
 
 `packages/tenon-canvas/` is a pi package: a design canvas extension and the `tenon-design` skill. Before you change the package, or host code that imports `#canvas/*`, read `packages/tenon-canvas/CLAUDE.md`.
 
+### tenon-sdd package
+
+`packages/tenon-sdd/` is a pi package: the `/sdd` runner for spec-driven changes and one guide for each stage. Tenon loads it in `runtime.ts` next to the canvas and passes `guidesDir`. `Chat.tsx` shows its `sdd-gate` message as Markdown. Before you change the package, read `packages/tenon-sdd/CLAUDE.md`.
+
 ## Code rules
 
 ### Principles

@@ -14,7 +14,8 @@
     "paths": {
       "#core/*": ["./src/core/*"],
       "#renderer/*": ["./src/renderer/src/*"],
-      "#canvas/*": ["./packages/tenon-canvas/src/*"]
+      "#canvas/*": ["./packages/tenon-canvas/src/*"],
+      "#sdd/*": ["./packages/tenon-sdd/src/*"]
     }
   },
   "include": ["src", "packages", "e2e", "electron.vite.config.ts"]
