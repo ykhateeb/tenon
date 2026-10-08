@@ -104,7 +104,7 @@ function runner(project: FakeProject, script: AgentScript, answers: Parameters<t
   return { ...fakeAgent, ...fakePerson, runner: createRunner(testDeps(project, fakeAgent.agent, fakePerson.person)) };
 }
 
-const stateOf = (project: FakeProject, dir = DIR) => JSON.parse(project.read(`${dir}/state.json`)) as { stage: string; specVersion: number; gates: { gate: string; result: string; reason?: string; commit?: string }[] };
+const stateOf = (project: FakeProject, dir = DIR) => JSON.parse(project.read(`${dir}/state.json`)) as { stage: string; specVersion: number; reviewRounds: number; gates: { gate: string; result: string; reason?: string; commit?: string }[] };
 
 describe("createRunner", () => {
   it("runs the full size from start to done", async () => {
@@ -285,7 +285,7 @@ describe("createRunner", () => {
 
   it("throws and records no approval when the person switches the branch at a gate", async () => {
     const project = createFakeProject();
-    const { runner: sdd, person } = runner(project, sortScript(project), { inputs: ["sort"], gates: [APPROVE] });
+    const { runner: sdd, person, runs } = runner(project, sortScript(project), { inputs: ["sort"], gates: [APPROVE] });
     const ask = person.gate;
     person.gate = async (question, summary) => {
       project.run("switch", "-q", "-c", "other");
@@ -293,6 +293,8 @@ describe("createRunner", () => {
     };
     await expect(sdd.start("Sort favorites by date")).rejects.toThrow('The branch changed to "other". Switch back to sdd/2026-10-08-sort and run /sdd again.');
     expect(project.run("log", "--format=%s", "sdd/2026-10-08-sort")).not.toContain("G1 approved");
+    expect(project.run("log", "--all", "--format=%s")).not.toContain("G1 approved");
+    expect(runs).toHaveLength(1);
   });
 
   it("protects the files of an interrupted session on resume, before the pre-check commit", async () => {
@@ -305,6 +307,57 @@ describe("createRunner", () => {
     expect(second.runs[0].title).toBe("sdd: tests (sort)");
     expect(second.runs[0].message).toContain("sdd/areas/favorites.md");
     expect(project.run("show", `${stateOf(project).gates.find((gate) => gate.gate === "G2")?.commit}:sdd/areas/favorites.md`)).toBe(AREA.trim());
+    expect(stateOf(project).stage).toBe("done");
+  });
+
+  it("reads the state of the last commit on resume, not the file of the working tree", async () => {
+    const project = createFakeProject();
+    const first = runner(project, sortScript(project), { inputs: ["sort"], gates: [APPROVE, STOP] });
+    await first.runner.start("Sort favorites by date");
+    project.write(`${DIR}/state.json`, '{"stage":"done"}');
+    const second = runner(project, sortScript(project), { gates: [APPROVE, APPROVE] });
+    await second.runner.resume();
+    expect(gatesOf(second.asked)[0]).toBe("G2");
+    expect(stateOf(project).stage).toBe("done");
+  });
+
+  it("resumes at the pending G3 without a new review session", async () => {
+    const project = createFakeProject();
+    const first = runner(project, sortScript(project), { inputs: ["sort"], gates: [APPROVE, APPROVE, STOP] });
+    await first.runner.start("Sort favorites by date");
+    expect(stateOf(project).stage).toBe("ship");
+    const second = runner(project, sortScript(project), { gates: [APPROVE] });
+    await second.runner.resume();
+    expect(second.runs).toEqual([]);
+    expect(gatesOf(second.asked)).toEqual(["G3"]);
+    expect(stateOf(project).stage).toBe("done");
+  });
+
+  it("restores a protected file of an interrupted Ship before any commit, and tells the person", async () => {
+    const project = createFakeProject();
+    const first = runner(project, sortScript(project), { inputs: ["sort"], gates: [APPROVE, APPROVE, STOP] });
+    await first.runner.start("Sort favorites by date");
+    project.write("tests/sort.txt", "sort-us1-s1|src/other.txt\n");
+    const second = runner(project, sortScript(project), { gates: [APPROVE] });
+    await second.runner.resume();
+    expect(second.notices.join("\n")).toContain("tests/sort.txt");
+    expect(project.read("tests/sort.txt")).toBe("sort-us1-s1|src/sort.txt\n");
+    expect(project.run("log", "--format=%s")).not.toContain("sdd(sort): resume");
+  });
+
+  it("returns to Build for review findings two times, then asks G3", async () => {
+    const project = createFakeProject();
+    const work = sortScript(project);
+    const script: AgentScript = async (run, count) => {
+      const result = await work(run, count);
+      return run.policy.kind === "review" ? { ...result, findings: [{ file: "src/sort.txt", problem: "x", action: "y", returnTo: "build" as const }] } : result;
+    };
+    const { runner: sdd, runs, asked } = runner(project, script, { inputs: ["sort"], gates: [APPROVE, APPROVE, APPROVE] });
+    await sdd.start("Sort favorites by date");
+    expect(runs.filter((run) => run.title === "sdd: build foundation (sort)")).toHaveLength(3);
+    expect(runs.filter((run) => run.title === "sdd: review (sort)")).toHaveLength(3);
+    expect(gatesOf(asked)).toEqual(["G1", "G2", "G3"]);
+    expect(stateOf(project).reviewRounds).toBe(2);
     expect(stateOf(project).stage).toBe("done");
   });
 });

@@ -29,6 +29,11 @@ describe("createGit", () => {
     expect(await git.isClean()).toBe(false);
   });
 
+  it("reads the subject of a commit", async () => {
+    const { git } = repository();
+    expect(await git.subjectOf("HEAD")).toBe("base");
+  });
+
   it("makes a branch and finds it by a pattern", async () => {
     const { git } = repository();
     await git.createBranch("sdd/2026-10-08-sort");

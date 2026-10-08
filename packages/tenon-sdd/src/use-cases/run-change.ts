@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { upsertSection } from "../entities/markdown.js";
 import type { Rules } from "../entities/rules.js";
-import { approvalOf, gateAfter, nextStage, stageOf, type State } from "../entities/state.js";
+import { approvalOf, gateAfter, nextStage, parseState, stageOf, type State } from "../entities/state.js";
 import type { Policy, StageKind } from "../entities/write-policy.js";
 import { GATE_QUESTIONS, gateSummary, invalidGates, lockedTests, recordApproval } from "./approve-gate.js";
 import { changeOf, pathOf, readRules, readSpec, readState, readText, RULES_PATH, writeState, type Change } from "./change.js";
@@ -73,31 +73,49 @@ async function startRefusal(deps: Deps): Promise<string | undefined> {
 /** Run the stages until the change is done, the person stops it, or a merge conflict needs the person. */
 async function drive(deps: Deps, change: Change, resumed: boolean): Promise<void> {
   if (!(await deps.git.isCommitted(RULES_PATH)) && (await setupRules(deps, change)) === "stopped") return;
-  let state = await readState(change);
+  let state = resumed ? await committedState(deps, change) : await readState(change);
+  let resume = resumed ? await restoreOnResume(deps, change, state) : undefined;
   if (resumed) {
-    if ((await deps.git.isClean()) && !(await mergedBase(deps, state))) return;
+    if (!(await mergedBase(deps, state))) return;
     state = await reopenInvalidGates(deps, change, state);
   }
-  let isResumedStage = resumed;
   while (state.stage !== "done") {
-    if (!isResumedStage && !(await mergedBase(deps, state))) return;
-    const step = state.stage === "ship" ? await ship(deps, change, state) : await workStage(deps, change, state, isResumedStage);
-    isResumedStage = false;
+    if (!resume && !(await mergedBase(deps, state))) return;
+    if (state.stage === "ship") for (const line of resume ?? []) deps.person.notify(line, "warning");
+    const step = state.stage === "ship" ? await ship(deps, change, state, resume !== undefined) : await workStage(deps, change, state, resume);
+    resume = undefined;
     if (step.kind === "stopped") return;
     state = step.state;
   }
   deps.person.notify(`The change is ready. Merge the branch sdd/${change.folder} into ${state.base}.`, "info");
 }
 
-/** Spec, Plan, Tests, or Build: the sessions, the exit check, then the gate or the next stage. */
-async function workStage(deps: Deps, change: Change, state: State, resumed: boolean): Promise<Step> {
+/**
+ * The state of the last commit. The working tree of an interrupted run is not trusted:
+ * a session could have written state.json through bash.
+ */
+async function committedState(deps: Deps, change: Change): Promise<State> {
+  const result = parseState((await deps.git.fileAt("HEAD", pathOf(change, "state.json"))) ?? "");
+  if (!result.ok) throw new Error(`state.json in the last commit is not valid: ${result.errors.join(" ")}`);
+  return result.value;
+}
+
+/** Restore the protected files of the interrupted session, then commit what is left, so that the merge can run. */
+async function restoreOnResume(deps: Deps, change: Change, state: State): Promise<string[]> {
+  const rules = await readRules(deps.root);
+  const restored = await protectedErrors(deps, change, await policyOf(deps, change, state, rules), state, await deps.git.head());
+  await deps.git.commitAll(`sdd(${change.slug}): resume`);
+  return restored;
+}
+
+/** Spec, Plan, Tests, or Build: the sessions, the exit check, then the gate or the next stage. A resume holds the lines about the files that the runner restored. */
+async function workStage(deps: Deps, change: Change, state: State, resume: readonly string[] | undefined): Promise<Step> {
   const rules = await readRules(deps.root);
   const check: Check = (latest) => exitErrors(deps, change, latest, rules);
   let current = state;
-  const restored = resumed ? await protectedErrors(deps, change, await policyOf(deps, change, state, rules), state, await deps.git.head()) : [];
-  const hasPassed = resumed && restored.length === 0 && (await check(state, undefined)).length === 0;
+  const hasPassed = resume?.length === 0 && (await check(state, undefined)).length === 0;
   if (!hasPassed) {
-    const runs = resumed ? [await stageRun(deps, change, state, rules, state.stage, ["Continue the stage. Read the files to see what is done.", ...restored])] : await stageRuns(deps, change, state, rules);
+    const runs = resume ? [await stageRun(deps, change, state, rules, state.stage, ["Continue the stage. Read the files to see what is done.", ...resume])] : await stageRuns(deps, change, state, rules);
     const checked = await checkedStage(deps, change, state, runs, check);
     if (checked.kind !== "passed") return endOf(deps, change, checked);
     current = checked.state;
@@ -198,18 +216,26 @@ async function advance(deps: Deps, change: Change, state: State): Promise<State>
   return next;
 }
 
-/** Ship: apply the delta, review, return for findings (at most 2 rounds), then G3. */
-async function ship(deps: Deps, change: Change, state: State): Promise<Step> {
+/** Ship: apply the delta, review, return for findings (at most 2 rounds), then G3. A resume at a finished review goes to G3. */
+async function ship(deps: Deps, change: Change, state: State, resumed: boolean): Promise<Step> {
   const rules = await readRules(deps.root);
   const applied = await shipApply(deps, change, state);
   if (applied.errors.length) {
     return { kind: "next", state: await returnChange(deps, change, state, { stage: "spec", reason: `The delta is stale: ${applied.errors.join(" ")}` }) };
   }
   await deps.git.commitAll(`sdd(${change.slug}): apply the delta to the area specs`);
+  if (resumed && (await isReviewDone(deps, change, rules))) return shipGate(deps, change, state, rules, applied.ids);
   const review = await reviewRound(deps, change, state, rules, applied.ids, []);
   if (review.kind !== "reviewed") return review;
   if (review.findings.length && review.state.reviewRounds < MAX_REVIEW_ROUNDS) return returnForFindings(deps, change, review.state, review.findings);
   return shipGate(deps, change, review.state, rules, applied.ids);
+}
+
+/** The runner commits "review" right after a review round, and a redraft at G3 commits "files changed at the gate". At either commit, the last review covers the content. */
+async function isReviewDone(deps: Deps, change: Change, rules: Rules): Promise<boolean> {
+  const subject = await deps.git.subjectOf("HEAD");
+  const isReviewCommit = subject === `sdd(${change.slug}): review` || subject === `sdd(${change.slug}): files changed at the gate`;
+  return isReviewCommit && (await shipErrors(deps, rules, change, true)).length === 0;
 }
 
 async function reviewRound(deps: Deps, change: Change, state: State, rules: Rules, ids: ReadonlyMap<string, string>, lines: readonly string[]): Promise<Step | Reviewed> {
