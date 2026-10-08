@@ -37,6 +37,18 @@ The runner reads these lines. Write them exactly in this form. All other text is
 - `- [OPEN] <question>`
 - Small bug or change: `Requirement: <ID>`
 
+Example of a baseline:
+
+```markdown
+## Baseline (from code)
+### sdd/areas/cart.md
+- BASE-R1: Cart total includes tax.
+Intended? yes
+- BASE-R2: Payment fails if the card is expired; error shows "Card expired".
+Defect: the code shows "Payment failed". Intended? no
+Coverage: Refunds and gift cards have no spec yet.
+```
+
 ## Template (full size)
 
 ```markdown
@@ -104,5 +116,5 @@ If the area spec does not describe the behavior that the change touches:
 1. Read the code. Under `## Baseline (from code)`, write the current behavior that the change touches as BASE items.
 2. For each item, call `ask_owner`: "Is this behavior intended?"
    - If yes, write `Intended? yes` below the item. A change to it is a MODIFIED item in the delta, with the BASE ID.
-   - If no, write the intended behavior as the item, and below it `Defect: <what the code does>. Intended? no`. The fix needs no delta item, only a failing test.
+   - If no, write the intended behavior as the item, and below it `Defect: <what the code does>. Intended? no`. The fix needs no delta item, only a failing test. A fix of a baseline defect is full size: its requirement has no final ID yet.
 3. Add one `Coverage:` line that names the parts of the area that have no spec yet.

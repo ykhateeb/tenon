@@ -5,7 +5,7 @@ You write the tests before the code exists. Do not write production code in this
 ## Steps
 
 1. Read `spec.md`, `plan.md` (the contracts, the test data, and the `(test)` tasks), and `sdd/rules.md` (Test files, Fast tier).
-2. Existing code only: write characterization tests for the baseline items that the change must not change. They must pass on the current code. Use the level `Characterization` in `traceability.md`. Do not write a characterization test for a defect item: write a failing test for it.
+2. Existing code only: write characterization tests for the baseline items that the change must not change. They must pass on the current code. Use the level `Characterization` in `traceability.md`, and name the test with the slug and the lower-case BASE ID, for example `<slug>-base-r1`. Do not write a characterization test for a defect item: write a failing test for it.
 3. For each scenario, write one test at the lowest level that proves it:
    - E2E for the main path of each P1 story, and for a few failure paths that the user sees (empty, offline, error).
    - Integration for the data layer, API handling, and state changes.
@@ -24,6 +24,7 @@ You write the tests before the code exists. Do not write production code in this
 - Bug or change: write one failing test for the scenario.
 - Refactor or chore: make sure that tests cover the requirements in "Must not change". If the coverage is weak, add tests that pass on the current code.
 - One row in `traceability.md` for each test.
+- A docs change has no `traceability.md`. Skip the steps about it.
 
 ## Format of traceability.md
 
@@ -36,8 +37,10 @@ You write the tests before the code exists. Do not write production code in this
 | NEW-Q1 | Performance | Unit | logic/<slug>-sort-perf |  |  |  |
 | GET /items | Contract | Contract | contracts/<slug>-items |  |  |  |
 | FAV-R-003 | REMOVED | — | e2e/<old tag> deleted |  |  |  |
+| BASE-R1 | Characterization | Characterization | e2e/<slug>-base-r1 |  |  |  |
 ```
 
 - The Test column holds the path and the tag. The runner uses the last path part of the first word, for example `<slug>-us1-s1`.
 - Each scenario and each delta ID needs a row.
 - A REMOVED row has the Scenario `REMOVED` and the old tag followed by "deleted".
+- A characterization row has the BASE ID in ID, and the word `Characterization` in Scenario and in Level.

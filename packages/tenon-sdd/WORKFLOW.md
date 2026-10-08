@@ -47,7 +47,7 @@ sdd/
 | `rules.md` | Rules for every change | The team, by review | Yes, by review only |
 | `areas/<area>.md` | What the system does now | Stage 5 only | Yes, at each Ship that touches the area |
 | `changes/<date>-<slug>/` | How and why one change happened | Stages 1–5 | No, frozen |
-| `state.json` | Owner, size, type, stage, and gates | Agents write the stage. Only a person's action adds an approval. | No |
+| `state.json` | Owner, size, type, stage, and gates | Only the runner. Agents ask with tools (`classify_change`, `request_return`). Only a person's action adds an approval. | No |
 
 The folder name is the start date and a slug. If a change folder (of any date) or a branch already uses the slug, the runner adds `-2`. Test names start with the slug, so it must be unique.
 
@@ -181,7 +181,7 @@ Why: Tests prove the spec, not the code.
 - JUnit reports: reports/*.xml
 - Fast tier: npx vitest run --changed
 - Test files: **/*.test.ts, e2e/**/*.e2e.ts
-- Mutation: npx stryker run | none
+- Mutation: none
 - Inner TDD: optional
 - Merge method: pull request on GitHub
 
@@ -194,6 +194,8 @@ Why: Tests prove the spec, not the code.
 - G2 (plan and tests): <name or role>
 - G3 (ship): <name or role>
 ```
+
+To use mutation tests, write the command, for example `Mutation: npx stryker run`. The command must exit with an error below the minimum score: set the minimum in the config of the tool.
 
 **Done when:** a person or a tool can check each rule, the list is short, and the commands and approvers are written. "Write clean code" is not a rule. "All server data goes through one data layer" is a rule.
 
@@ -422,7 +424,7 @@ Write code until the tests pass, one story at a time. Then check the code agains
 3. Tick each task when it is done. Commit in small steps.
 4. Use a new agent session for each story, to keep the context small.
 5. When all stories are done, run the full tier. Fill *Status*, *Evidence* (the file that does the work), and *Verdict* (the runner sets met or missing) in each row. A test that passes while the requirement is only partly met is a weak test: use `request_return` with the stage tests.
-6. If `rules.md` names a mutation tool, run it on the changed code. If the score is below the minimum, find the weak tests:
+6. If `rules.md` has a mutation command, run it on the changed code. The command exits 0 only at the minimum score, which the config of the tool sets. If it fails, find the weak tests:
    - If a weak test is not in `traceability.md`, make it stronger now.
    - If a weak test is an approved test, return to Stage 3.
 7. Add a row with the verdict **extra** for each piece of code that the spec did not ask for. Remove the code, or return to Stage 1 to add it to the spec.
@@ -440,12 +442,12 @@ Write code until the tests pass, one story at a time. Then check the code agains
 **Footer of `traceability.md` (after Stage 4):**
 
 ```markdown
-Full tier: passing   Mutation: 87% (minimum 80%) | none configured
+Full tier: passing   Mutation: passed | none
 Rules check: all pass
 Notes for review: <anything surprising, anything hard>
 ```
 
-**Done when:** all tasks are ticked, each row is met with evidence, no **extra** rows remain, the full tier passes, and the mutation score is at the minimum or higher (if configured). This stage has no human gate. The check is its exit condition.
+**Done when:** all tasks are ticked, each row is met with evidence, no **extra** rows remain, the full tier passes, and the mutation command exits 0 (if configured). It exits 0 only at the minimum score, which the config of the tool sets. This stage has no human gate. The check is its exit condition.
 
 ## Stage 5 — Ship (apply, review, approve, merge)
 
@@ -573,7 +575,7 @@ The workflow stays the same. Only one rule is new: **write a baseline before a d
 
 Do not write specs for the full system first. Write specs only for the behavior that a change touches.
 
-1. If the area spec does not describe the behavior that the change touches, read the code.
+1. If the area spec does not describe the behavior that the change touches, read the code. Each item in the Baseline and Delta sections needs its area heading (`### sdd/areas/<area>.md`) above it, and each `- ` line under these two sections must be a strict item.
 2. In `spec.md`, write a *Baseline* section above the delta. It lists the current behavior, marked "from code".
 3. For each baseline item that the change touches, ask the owner: *Is this behavior intended?*
    - If yes, keep the item. A change to it is a MODIFIED item in the delta.
@@ -585,11 +587,14 @@ A baseline requirement shows `(since <folder>, baseline)` in the area spec. A `C
 
 ```markdown
 ## Baseline (from code)
+### sdd/areas/cart.md
 - BASE-R1: Cart total includes tax.
     Intended? yes → characterization test
 - BASE-R2: Payment fails if the card is expired; error shows "Card expired".
     Defect: the code shows "Payment failed". Intended? no → failing test
+Coverage: Refunds and gift cards have no spec yet.
 ## Delta
+### sdd/areas/cart.md
 - ADDED    NEW-R1: Saved cards are offered first
 ```
 

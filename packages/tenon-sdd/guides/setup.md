@@ -11,12 +11,12 @@ You write the rules of this project for spec-driven changes. The runner gave you
    - Playwright: `PLAYWRIGHT_JUNIT_OUTPUT_NAME=reports/e2e.xml npx playwright test --reporter=junit`
    - pytest: `pytest --junitxml=reports/junit.xml`
    - Maestro: `maestro test --format junit --output reports/maestro.xml .maestro/`
-   If the project needs several commands, join them with `&&` in the Full tier line.
+   If the project has more than one test command, join them with `;` (on Windows, `&`), so that each command runs and writes its report.
 3. Each JUnit report glob must start with a folder, for example `reports/*.xml`.
 4. Write the globs of the test files in "Test files", for example `**/*.test.ts, e2e/**/*.e2e.ts`.
 5. Write 3 to 6 principles. Take them from what the code already does. Each rule is one sentence that a person or a tool can check. "Write clean code" is not a rule. "All server data goes through one data layer" is a rule.
 6. Write the file with the structure below. Keep the lines of the Commands section exactly in this form.
-7. Stop. The runner runs the full tier and checks that the JUnit reports appear. If the check fails, you get a message: correct the file.
+7. Stop. After your session, the runner checks only that `sdd/rules.md` parses. The runner runs the full tier after the person approves the rules. If the tier fails, a new session gets the errors: correct the file.
 
 ## Structure
 
