@@ -185,6 +185,22 @@ describe("createRunner", () => {
     expect(stateOf(project).stage).toBe("done");
   });
 
+  it("returns to Tests after Build for a review finding, accepts the passing tests, and asks G2 again", async () => {
+    const project = createFakeProject();
+    const work = sortScript(project);
+    let hasFound = false;
+    const script: AgentScript = async (run, count) => {
+      const result = await work(run, count);
+      if (run.policy.kind !== "review" || hasFound) return result;
+      hasFound = true;
+      return { ...result, findings: [{ file: "tests/sort.txt", problem: "checks nothing", action: "assert the order", returnTo: "tests" as const }] };
+    };
+    const { runner: sdd, asked } = runner(project, script, { inputs: ["sort"], gates: [APPROVE, APPROVE, APPROVE, APPROVE] });
+    await sdd.start("Sort favorites by date");
+    expect(gatesOf(asked)).toEqual(["G1", "G2", "G2", "G3"]);
+    expect(stateOf(project).stage).toBe("done");
+  });
+
   it("restores an area spec that the agent wrote through bash, and tells the agent", async () => {
     const project = createFakeProject();
     const work = sortScript(project);
@@ -247,6 +263,21 @@ describe("createRunner", () => {
     await second.runner.resume();
     expect(gatesOf(second.asked)).toEqual(["G2", "G3"]);
     expect(second.runs[0].title).toBe("sdd: build foundation (sort)");
+    expect(stateOf(project).stage).toBe("done");
+  });
+
+  it("asks only G3 on resume after Build added a test file", async () => {
+    const project = createFakeProject();
+    const work = sortScript(project);
+    const script: AgentScript = async (run, count) => {
+      if (run.title === "sdd: build foundation (sort)") project.write("tests/unit.txt", "sort-unit|src/sort.txt\n");
+      return work(run, count);
+    };
+    const first = runner(project, script, { inputs: ["sort"], gates: [APPROVE, APPROVE, STOP] });
+    await first.runner.start("Sort favorites by date");
+    const second = runner(project, script, { gates: [APPROVE] });
+    await second.runner.resume();
+    expect(gatesOf(second.asked)).toEqual(["G3"]);
     expect(stateOf(project).stage).toBe("done");
   });
 

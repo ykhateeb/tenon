@@ -70,6 +70,15 @@ describe("testsStageErrors", () => {
     const characterization = withStatuses([{ ...trace().rows[0], level: "Characterization" }], CASES, "fail-first");
     expect(characterization[0].status).toBe("failing");
   });
+
+  it("accepts a passing or an expected failing test after Build, but not a skipped one", () => {
+    const cases: TestCase[] = [{ ...CASES[0], result: "passed" }, CASES[1], CASES[2]];
+    const rows = withStatuses(trace().rows, cases, "after-build");
+    expect(statuses(rows)).toEqual(["passing", "failing (expected)", "skipped", "—"]);
+    expect(testsStageErrors(rows, { ...SPEC, scenarios: SPEC.scenarios.slice(0, 2), delta: [] }, "after-build")).toEqual([
+      'NEW-Q1 Performance: logic/sort-perf is "skipped", and it must be "passing" or "failing (expected)".',
+    ]);
+  });
 });
 
 describe("withVerdicts and buildStageErrors", () => {

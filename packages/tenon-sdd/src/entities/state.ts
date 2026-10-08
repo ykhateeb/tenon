@@ -24,6 +24,8 @@ export type State = {
   stage: Stage;
   reviewRounds: number;
   gates: GateEntry[];
+  /** True once the change reached Build. A return after that keeps the code, so a test can pass in Tests. */
+  built?: boolean;
 };
 
 const GATE_STAGE: Record<Gate, WorkStage> = { G1: "spec", G2: "tests", G3: "ship" };
@@ -69,6 +71,7 @@ export function parseState(json: string): ParseResult<State> {
   if (value.type !== undefined && !CHANGE_TYPES.includes(value.type as ChangeType)) {
     errors.push(`state.json has an unknown type "${String(value.type)}".`);
   }
+  if (value.built !== undefined && typeof value.built !== "boolean") errors.push('state.json: "built" must be true or false.');
   return parsed(value as State, errors);
 }
 

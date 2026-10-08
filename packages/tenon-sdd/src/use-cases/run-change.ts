@@ -228,7 +228,8 @@ async function gateOrAdvance(deps: Deps, change: Change, state: State, rules: Ru
 }
 
 async function advance(deps: Deps, change: Change, state: State): Promise<State> {
-  const next: State = { ...state, stage: nextStage(state) };
+  const stage = nextStage(state);
+  const next: State = stage === "build" ? { ...state, stage, built: true } : { ...state, stage };
   await writeState(change, next);
   await deps.git.commitAll(`sdd(${change.slug}): start ${next.stage}`);
   return next;

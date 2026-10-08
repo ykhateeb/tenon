@@ -33,7 +33,7 @@ export async function invalidGates(deps: Deps, change: Change, state: State, rul
   for (const gate of GATES) {
     const approval = approvalOf(state, gate);
     if (!approval) continue;
-    const covered = await coveredPaths(deps, change, state, rules, gate, approval.commit);
+    const covered = await coveredPaths({ deps, change, state, rules, gate, commit: approval.commit });
     if ((await deps.git.changedSince(approval.commit, covered)).length) invalid.push(gate);
   }
   return invalid;
@@ -53,14 +53,15 @@ export async function gateSummary(deps: Deps, change: Change, gate: Gate, state:
   return parts.join("\n\n");
 }
 
-/** G1 covers spec.md. G2 covers spec.md and test files changed from base to approval and from base to HEAD. G3 covers files changed from base to approval and from base to HEAD, minus state.json. */
-async function coveredPaths(deps: Deps, change: Change, state: State, rules: Rules, gate: Gate, commit: string): Promise<string[]> {
+type Coverage = { deps: Deps; change: Change; state: State; rules: Rules; gate: Gate; commit: string };
+
+/**
+ * G1 covers spec.md. G2 covers spec.md and the approved tests: Build can add test files, and G3 covers those.
+ * G3 covers files changed from base to approval and from base to HEAD, minus state.json.
+ */
+async function coveredPaths({ deps, change, state, rules, gate, commit }: Coverage): Promise<string[]> {
   if (gate === "G1") return [pathOf(change, "spec.md")];
-  if (gate === "G2") {
-    const approvedTests = await testFilesChanged(deps, state, rules, commit);
-    const headTests = await testFilesChanged(deps, state, rules, "HEAD");
-    return [pathOf(change, "spec.md"), ...new Set([...approvedTests, ...headTests])];
-  }
+  if (gate === "G2") return [pathOf(change, "spec.md"), ...(await testFilesChanged(deps, state, rules, commit))];
   const fromApproval = await deps.git.forkPoint(state.base, commit);
   const fromHead = await deps.git.forkPoint(state.base, "HEAD");
   const approvalChanged = await deps.git.changedBetween(fromApproval, commit);

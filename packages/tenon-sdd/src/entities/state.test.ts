@@ -39,6 +39,11 @@ describe("parseState", () => {
   it("rejects an unknown size", () => {
     expect(parseState(JSON.stringify({ ...state(), size: "medium" })).ok).toBe(false);
   });
+
+  it("accepts a boolean built, and rejects another value", () => {
+    expect(parseState(JSON.stringify(state({ built: true }))).ok).toBe(true);
+    expect(parseState(JSON.stringify({ ...state(), built: "yes" })).ok).toBe(false);
+  });
 });
 
 describe("gateAfter", () => {

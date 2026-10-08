@@ -104,7 +104,7 @@ async function testsErrors(deps: Deps, change: Change, state: State, rules: Rule
   const unticked = state.size === "full" ? await untickedErrors(change, true) : [];
   const tier = await runFullTier(deps, rules);
   if (tier.errors.length) return [...unticked, ...tier.errors];
-  const mode: TestMode = state.type === "refactor" || state.type === "chore" ? "pass" : "fail-first";
+  const mode: TestMode = state.type === "refactor" || state.type === "chore" ? "pass" : state.built ? "after-build" : "fail-first";
   const rows = withStatuses(trace.value.rows, tier.cases, mode);
   await writeTrace(change, { ...trace.value, rows });
   return [...unticked, ...testsStageErrors(rows, spec.value, mode)];

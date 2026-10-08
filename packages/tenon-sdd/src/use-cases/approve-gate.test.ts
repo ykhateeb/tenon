@@ -69,7 +69,7 @@ describe("invalidGates and lockedTests", () => {
     expect(await invalidGates(deps, change, state, rules)).toEqual(["G1", "G2"]);
   });
 
-  it("detects new test files after G2 approval", async () => {
+  it("does not reopen G2 for a new test file after the approval", async () => {
     const { project, deps, change, rules } = await started();
     project.write(`${change.dir}/spec.md`, "# Spec: Sort\n");
     let reviewed = (await project.git.commitAll("sdd(sort): spec done"))!;
@@ -79,7 +79,7 @@ describe("invalidGates and lockedTests", () => {
     state = (await recordApproval(deps, change, "G2", state, reviewed))!;
     project.write("tests/new.txt", "new-us1-s1|src/new.txt\n");
     await project.git.commitAll("new test");
-    expect(await invalidGates(deps, change, state, rules)).toEqual(["G2"]);
+    expect(await invalidGates(deps, change, state, rules)).toEqual([]);
   });
 
   it("detects new files after G3 approval", async () => {

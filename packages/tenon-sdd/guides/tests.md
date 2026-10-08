@@ -13,7 +13,7 @@ You write the tests before the code exists. Do not write production code in this
 4. Put a tag in the name of each scenario test: the slug and the scenario ID in lower case, for example `favorites-sorting-us1-s1`. The slug is the part of the change folder name after the date. The runner finds the test in the JUnit report by this tag.
 5. Write the tests for the quality requirements (NEW-Q items) and one contract test for each API or event in the plan.
 6. If a requirement is MODIFIED, change its old tests to the new behavior, or delete them if a new test replaces them. If a requirement is REMOVED, delete its old tests.
-7. Run the fast tier from `sdd/rules.md`. Each new or changed test must fail because the feature is missing, not because the test is broken.
+7. Run the fast tier from `sdd/rules.md`. Each new or changed test must fail because the feature is missing, not because the test is broken. If the change returned to this stage after Build, a test can pass. The person checks at the gate that it tests the correct behavior.
 8. Write `traceability.md` (format below). Fill ID, Scenario, Level, and Test. Leave Status, Evidence, and Verdict empty: the runner fills Status.
 9. Tick the `(test)` tasks in `plan.md`.
 10. If a scenario cannot be tested as written, call `request_return` with the stage spec.

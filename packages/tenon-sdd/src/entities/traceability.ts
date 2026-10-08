@@ -6,8 +6,8 @@ export type TestResult = "passed" | "failed" | "skipped";
 export type TestCase = { name: string; className: string; result: TestResult };
 export type Row = { id: string; scenario: string; level: string; test: string; status: string; evidence: string; verdict: string };
 export type Traceability = { head: string[]; rows: Row[]; footer: string[] };
-/** fail-first: a new test must fail before the build. pass: each test must pass. */
-export type TestMode = "fail-first" | "pass";
+/** fail-first: a new test must fail before the build. after-build: the code of Build exists, so a test can pass or fail. pass: each test must pass. */
+export type TestMode = "fail-first" | "after-build" | "pass";
 
 export const REMOVED = "REMOVED";
 export const CHARACTERIZATION = "Characterization";
@@ -47,8 +47,8 @@ export function testsStageErrors(rows: readonly Row[], spec: Spec, mode: TestMod
     ...spec.delta.filter((item) => !rows.some((row) => row.id === item.id)).map((item) => `No row for ${item.id}.`),
   ];
   const wrong = rows.filter((row) => row.verdict !== "extra").flatMap((row) => {
-    const wanted = wantedStatus(row, mode);
-    return row.status === wanted ? [] : [`${row.id} ${row.scenario}: ${row.test} is "${row.status}", and it must be "${wanted}".`];
+    const wanted = wantedStatuses(row, mode);
+    return wanted.includes(row.status) ? [] : [`${row.id} ${row.scenario}: ${row.test} is "${row.status}", and it must be "${wanted.join('" or "')}".`];
   });
   return [...missing, ...wrong];
 }
@@ -85,12 +85,13 @@ function statusOf(row: Row, cases: readonly TestCase[], mode: TestMode): string 
   if (!found.length) return "not found";
   if (found.some((testCase) => testCase.result === "skipped")) return "skipped";
   if (!found.some((testCase) => testCase.result === "failed")) return "passing";
-  return mode === "fail-first" && row.level !== CHARACTERIZATION ? EXPECTED_FAILURE : "failing";
+  return mode !== "pass" && row.level !== CHARACTERIZATION ? EXPECTED_FAILURE : "failing";
 }
 
-function wantedStatus(row: Row, mode: TestMode): string {
-  if (row.scenario === REMOVED) return GONE;
-  return mode === "pass" || row.level === CHARACTERIZATION ? "passing" : EXPECTED_FAILURE;
+function wantedStatuses(row: Row, mode: TestMode): string[] {
+  if (row.scenario === REMOVED) return [GONE];
+  if (mode === "pass" || row.level === CHARACTERIZATION) return ["passing"];
+  return mode === "after-build" ? ["passing", EXPECTED_FAILURE] : [EXPECTED_FAILURE];
 }
 
 function cells(line: string): string[] {

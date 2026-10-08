@@ -407,7 +407,7 @@ The Test column holds the path and the tag of the test. The runner matches the l
 
 **Gate G2:** A person approves the plan and the tests together. Questions: *Is this the right way to build it, safely and compatibly? Do these tests truly express the spec?*
 
-An **approved test** is a test that `traceability.md` lists. After G2, a change to an approved test returns the change to Stage 3 and needs G2 again. In the small size, G3 approves the test changes.
+An **approved test** is one of the test files that the branch changed up to the G2 approval. After G2, a change to an approved test returns the change to Stage 3 and needs G2 again. In the small size, G3 approves the test changes.
 
 ## Stage 4 — Build (code until the check passes)
 
@@ -624,7 +624,7 @@ Select the lowest level that proves the scenario. All three levels come from the
 | Gate | After | Question | Covers | Small size |
 | --- | --- | --- | --- | --- |
 | G1 | Spec | Is this the right thing to build? | `spec.md` | Not used |
-| G2 | Plan + Tests | Is this the right way to build it? Do the tests truly express the spec? | `spec.md` and the approved tests (the tests that `traceability.md` lists) | Not used |
+| G2 | Plan + Tests | Is this the right way to build it? Do the tests truly express the spec? | `spec.md` and the approved tests (the test files that the branch changed up to the G2 approval) | Not used |
 | G3 | Ship | Is the final diff, area spec diff included, correct and good code to keep? | The full diff of the branch, except `state.json` | Also approves the spec and the tests |
 
 A gate opens again if a file that it covers changes after its approval. Thus a spec change opens all three gates again. G2 does not cover `plan.md` and `traceability.md`, because Build ticks the tasks and fills the results. A plan change after G2 uses the *Return rule*.
