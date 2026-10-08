@@ -11,7 +11,7 @@ import { exitErrors, shipErrors } from "./exit-checks.js";
 import type { Deps, Finding, ReturnStage, StageRun } from "./ports.js";
 import { returnChange } from "./return-change.js";
 import { protectedErrors, redraft, runChecked, type StageEnd } from "./run-stage.js";
-import { setupRules } from "./setup-rules.js";
+import { rulesApprovedSubject, setupRules } from "./setup-rules.js";
 import { shipApply } from "./ship-apply.js";
 import { GUIDES } from "./stages.js";
 import { startChange, suggestSlug } from "./start-change.js";
@@ -72,8 +72,8 @@ async function startRefusal(deps: Deps): Promise<string | undefined> {
 
 /** Run the stages until the change is done, the person stops it, or a merge conflict needs the person. */
 async function drive(deps: Deps, change: Change, resumed: boolean): Promise<void> {
-  if (!(await deps.git.isCommitted(RULES_PATH)) && (await setupRules(deps, change)) === "stopped") return;
   let state = resumed ? await committedState(deps, change) : await readState(change);
+  if ((await isSetupPending(deps, change)) && (await setupRules(deps, change, state)) === "stopped") return;
   let resume = resumed ? await restoreOnResume(deps, change, state) : undefined;
   if (resumed) {
     if (!(await mergedBase(deps, state))) return;
@@ -88,6 +88,16 @@ async function drive(deps: Deps, change: Change, resumed: boolean): Promise<void
     state = step.state;
   }
   deps.person.notify(`The change is ready. Merge the branch sdd/${change.folder} into ${state.base}.`, "info");
+}
+
+/**
+ * Setup is pending until the commit "rules approved" holds sdd/rules.md. A rules draft that the person did not approve is committed too.
+ * Rules from the base branch, from another change, or from a merge are not pending.
+ */
+async function isSetupPending(deps: Deps, change: Change): Promise<boolean> {
+  if (!(await deps.git.isCommitted(RULES_PATH))) return true;
+  const subject = await deps.git.subjectOf("HEAD", RULES_PATH);
+  return subject.startsWith(`sdd(${change.slug}): `) && subject !== rulesApprovedSubject(change);
 }
 
 // ponytail: trusts git history. A stage with bash can commit a forged state.json and stop the app before the runner checks; read the branch diff before you merge.

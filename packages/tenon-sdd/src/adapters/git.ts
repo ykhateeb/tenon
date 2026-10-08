@@ -29,7 +29,8 @@ export function createGit(root: string) {
     root: () => git("rev-parse", "--show-toplevel"),
     currentBranch: () => git("branch", "--show-current"),
     head: () => git("rev-parse", "HEAD"),
-    subjectOf: (ref: string) => git("log", "-1", "--format=%s", ref),
+    /** The subject of the commit, or of the last commit before it that changed the path. */
+    subjectOf: (ref: string, path?: string) => git("log", "-1", "--format=%s", ref, ...(path ? ["--", path] : [])),
     userName: async () => (await git("config", "user.name").catch(() => "")) || "unknown",
     isClean: async () => (await git("status", "--porcelain")) === "",
     /** True if a local or a remote branch matches the pattern, for example sdd/*-sort. */

@@ -13,7 +13,7 @@ describe("setupRules", () => {
     const { person, asked } = createFakePerson({ gates: [{ kind: "change", feedback: "Name the approvers." }, APPROVE] });
     const deps = testDeps(project, agent, person);
     const started = await startChange(deps, { request: "Sort", slug: "sort" });
-    expect(await setupRules(deps, started)).toBe("approved");
+    expect(await setupRules(deps, started, await readState(started))).toBe("approved");
     expect(runs.map((run) => run.policy.kind)).toEqual(["setup", "setup"]);
     expect(runs[1].message).toContain("Name the approvers.");
     expect(asked).toEqual(["Approve sdd/rules.md?", "Approve sdd/rules.md?"]);
@@ -31,7 +31,7 @@ describe("setupRules", () => {
     const { person } = createFakePerson({ gates: [{ kind: "stop" }] });
     const deps = testDeps(project, agent, person);
     const started = await startChange(deps, { request: "Sort", slug: "sort" });
-    expect(await setupRules(deps, started)).toBe("stopped");
+    expect(await setupRules(deps, started, await readState(started))).toBe("stopped");
     expect(existsSync(markerPath)).toBe(false);
   });
 
@@ -53,7 +53,7 @@ describe("setupRules", () => {
     const { person, asked } = createFakePerson({ gates: [APPROVE, APPROVE] });
     const deps = testDeps(project, agent, person);
     const started = await startChange(deps, { request: "Sort", slug: "sort" });
-    expect(await setupRules(deps, started)).toBe("approved");
+    expect(await setupRules(deps, started, await readState(started))).toBe("approved");
     expect(agentRuns.length).toBe(2);
     expect(asked).toEqual(["Approve sdd/rules.md?", "Approve sdd/rules.md?"]);
   });
@@ -75,7 +75,7 @@ describe("setupRules", () => {
 
     const deps = testDeps(project, agent, person);
     const started = await startChange(deps, { request: "Sort", slug: "sort" });
-    const result = await setupRules(deps, started);
+    const result = await setupRules(deps, started, await readState(started));
     expect(result).toBe("approved");
     expect(gateCallCount).toBe(2);
     expect(agentRuns.length).toBe(1);
@@ -95,6 +95,18 @@ describe("setupRules", () => {
     };
     const deps = testDeps(project, agent, person);
     const started = await startChange(deps, { request: "Sort", slug: "sort" });
-    await expect(setupRules(deps, started)).rejects.toThrow('The branch changed to "other". Switch back to sdd/2026-10-08-sort and run /sdd again.');
+    await expect(setupRules(deps, started, await readState(started))).rejects.toThrow('The branch changed to "other". Switch back to sdd/2026-10-08-sort and run /sdd again.');
+  });
+
+  it("replaces the draft commits with one approval commit", async () => {
+    const project = createFakeProject({ withRules: false });
+    const { agent } = createFakeAgent(async () => project.write("sdd/rules.md", RULES));
+    const { person } = createFakePerson({ gates: [{ kind: "change", feedback: "Name the approvers." }, APPROVE] });
+    const deps = testDeps(project, agent, person);
+    const started = await startChange(deps, { request: "Sort", slug: "sort" });
+    expect(await setupRules(deps, started, await readState(started))).toBe("approved");
+    expect(project.run("log", "-1", "--format=%s", "--", "sdd/rules.md")).toBe("sdd(sort): rules approved");
+    expect(project.run("log", "--format=%s")).not.toContain("rules draft");
+    expect(project.run("status", "--porcelain")).toBe("");
   });
 });

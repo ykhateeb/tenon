@@ -1,15 +1,21 @@
 import { join } from "node:path";
 import type { Policy } from "../entities/write-policy.js";
 import { parseRules } from "../entities/rules.js";
-import { readState, readText, RULES_PATH, type Change } from "./change.js";
+import type { State } from "../entities/state.js";
+import { readText, RULES_PATH, type Change } from "./change.js";
 import { runFullTier } from "./exit-checks.js";
 import type { Deps, StageRun } from "./ports.js";
 import { protectedErrors, redraft, runChecked } from "./run-stage.js";
 import { GUIDES } from "./stages.js";
 
+/** The subject of the one commit that holds the approved rules. Until it exists, the setup of the change is pending. */
+export function rulesApprovedSubject(change: Change): string {
+  return `sdd(${change.slug}): rules approved`;
+}
+
 /** The agent drafts sdd/rules.md, the runner validates it, and the person approves it. The rules merge with this change. */
-export async function setupRules(deps: Deps, change: Change): Promise<"approved" | "stopped"> {
-  const state = await readState(change);
+export async function setupRules(deps: Deps, change: Change, state: State): Promise<"approved" | "stopped"> {
+  const before = await beforeDrafts(deps, change);
   const policy: Policy = { kind: "setup", changeDir: change.dir, specLocked: false, lockedTests: [], testGlobs: [] };
   let feedback: string[] = [];
   for (;;) {
@@ -49,9 +55,20 @@ export async function setupRules(deps: Deps, change: Change): Promise<"approved"
         break; // Go back to agent session
       }
 
+      // The draft commits of this setup become one commit with the same content.
+      await deps.git.resetSoft(before);
+      await deps.git.commitAll(rulesApprovedSubject(change));
       return "approved";
     }
   }
+}
+
+/** HEAD, or the commit before the draft commits of an earlier setup that the person stopped. The approval commit replaces them. */
+async function beforeDrafts(deps: Deps, change: Change): Promise<string> {
+  const drafts = [`sdd(${change.slug}): rules draft`, `sdd(${change.slug}): files changed at the gate`];
+  let ref = await deps.git.head();
+  while (drafts.includes(await deps.git.subjectOf(ref))) ref = `${ref}~1`;
+  return ref;
 }
 
 async function parseRulesOnly(deps: Deps): Promise<string[]> {

@@ -34,6 +34,16 @@ describe("createGit", () => {
     expect(await git.subjectOf("HEAD")).toBe("base");
   });
 
+  it("reads the subject of the last commit that changed a path", async () => {
+    const { root, run, git } = repository();
+    writeFileSync(join(root, "b.txt"), "two\n");
+    run("add", "-A");
+    run("commit", "-q", "-m", "add b");
+    expect(await git.subjectOf("HEAD")).toBe("add b");
+    expect(await git.subjectOf("HEAD", "a.txt")).toBe("base");
+    expect(await git.subjectOf("HEAD", "b.txt")).toBe("add b");
+  });
+
   it("makes a branch and finds it by a pattern", async () => {
     const { git } = repository();
     await git.createBranch("sdd/2026-10-08-sort");

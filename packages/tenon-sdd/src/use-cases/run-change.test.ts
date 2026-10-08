@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -102,6 +102,19 @@ function runner(project: FakeProject, script: AgentScript, answers: Parameters<t
   const fakeAgent = createFakeAgent(script);
   const fakePerson = createFakePerson(answers);
   return { ...fakeAgent, ...fakePerson, runner: createRunner(testDeps(project, fakeAgent.agent, fakePerson.person)) };
+}
+
+/** A project without rules. The setup session writes rules whose Full tier command leaves a marker file. */
+function withoutRules() {
+  const project = createFakeProject({ withRules: false });
+  const marker = `${project.root}/reports/marker-setup-tier`;
+  const rules = RULES.replace("Full tier: node fake-tests.mjs", `Full tier: mkdir -p ${project.root}/reports && touch ${marker} && node fake-tests.mjs`);
+  const work = sortScript(project);
+  const script: AgentScript = async (run, count) => {
+    if (run.policy.kind !== "setup") return work(run, count);
+    project.write("sdd/rules.md", rules);
+  };
+  return { project, marker, script };
 }
 
 const stateOf = (project: FakeProject, dir = DIR) => JSON.parse(project.read(`${dir}/state.json`)) as { stage: string; specVersion: number; reviewRounds: number; gates: { gate: string; result: string; reason?: string; commit?: string }[] };
@@ -373,6 +386,30 @@ describe("createRunner", () => {
     expect(project.read("tests/sort.txt")).toBe("sort-us1-s1|src/sort.txt\n");
     expect(project.run("log", "--format=%s", "--", "tests/sort.txt")).not.toContain("resume");
     expect(project.read("sdd/rules.md")).toBe(RULES);
+    expect(stateOf(project).stage).toBe("done");
+  });
+
+  it("does not treat a stopped rules draft as approved on resume", async () => {
+    const { project, marker, script } = withoutRules();
+    const first = runner(project, script, { inputs: ["sort"], gates: [STOP] });
+    await first.runner.start("Sort favorites by date");
+    expect(existsSync(marker)).toBe(false);
+    const second = runner(project, script, { gates: [STOP] });
+    await second.runner.resume();
+    expect(second.asked).toEqual(["Approve sdd/rules.md?"]);
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  it("replaces the stopped rules draft with one approval commit when the person approves on resume", async () => {
+    const { project, marker, script } = withoutRules();
+    const first = runner(project, script, { inputs: ["sort"], gates: [STOP] });
+    await first.runner.start("Sort favorites by date");
+    const second = runner(project, script, { gates: [APPROVE, APPROVE, APPROVE, APPROVE] });
+    await second.runner.resume();
+    expect(second.asked[0]).toBe("Approve sdd/rules.md?");
+    expect(project.run("log", "-1", "--format=%s", "--", "sdd/rules.md")).toBe("sdd(sort): rules approved");
+    expect(project.run("log", "--format=%s")).not.toContain("rules draft");
+    expect(existsSync(marker)).toBe(true);
     expect(stateOf(project).stage).toBe("done");
   });
 });
